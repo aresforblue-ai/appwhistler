@@ -1465,6 +1465,38 @@ const resolvers = {
       return result.rows[0];
     },
   },
+
+  User: {
+    avatar: parent => getField(parent, 'avatar', String),
+    avatarUrl: parent => getField(parent, 'avatar_url', String),
+    avatarThumbnailUrl: parent => getField(parent, 'avatar_thumbnail_url', String),
+    avatarUploadedAt: parent => getField(parent, 'avatar_uploaded_at', String),
+    walletAddress: parent => getField(parent, 'wallet_address', String),
+    truthScore: parent => getField(parent, 'truth_score', Number),
+    isVerified: parent => getField(parent, 'is_verified', Boolean),
+    createdAt: parent => getField(parent, 'created_at', String),
+    socialLinks: (parent) => {
+      if (!parent.social_links) return [];
+      return JSON.parse(parent.social_links);
+    },
+    preferences: (parent) => {
+      if (!parent.preferences) {
+        return {
+          notifications: { email: true, push: true, inApp: true },
+          privacy: { profileVisibility: 'public', showReputation: true },
+          theme: 'dark'
+        };
+      }
+      return JSON.parse(parent.preferences);
+    },
+    reputation: parent => getField(parent, 'reputation', Number),
+    bio: parent => getField(parent, 'bio', String),
+  },
+
+  Notification: {
+    userId: parent => getField(parent, 'user_id', String),
+    createdAt: parent => getField(parent, 'created_at', String),
+  },
 };
 
 module.exports = resolvers;

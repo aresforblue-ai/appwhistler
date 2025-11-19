@@ -10,6 +10,9 @@ import {
   loginUser,
   submitFactCheck as submitFactCheckRequest
 } from './services/api';
+import NotificationCenter from './components/NotificationCenter';
+import ErrorBoundary from './components/ErrorBoundary';
+import { OnboardingTutorial } from './components/OnboardingTutorial';
 
 const HERO_FEATURES = [
   'Realtime disinformation radar',
@@ -225,9 +228,13 @@ function App() {
 
   const isAuthenticated = Boolean(authToken && user);
   const factCheckCount = factChecks.length || DEFAULT_FACT_CHECKS.length;
+  const hasOnboarded = localStorage.getItem('appwhistler_onboarded') === 'true';
 
   return (
-    <div className={`relative min-h-screen overflow-hidden ${darkMode ? 'bg-slate-950' : 'bg-slate-50'} transition-colors duration-500`}>
+    <ErrorBoundary>
+      <NotificationCenter />
+      {user && !hasOnboarded && <OnboardingTutorial userId={user.id} />}
+      <div className={`relative min-h-screen overflow-hidden ${darkMode ? 'bg-slate-950' : 'bg-slate-50'} transition-colors duration-500`}>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-24 -right-16 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
         <div className="absolute top-1/3 -left-16 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
@@ -294,6 +301,7 @@ function App() {
         />
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 
