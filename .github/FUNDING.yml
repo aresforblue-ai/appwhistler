@@ -1,0 +1,66 @@
+# These are supported funding model platforms
+
+# GitHub Sponsors
+github: # Add your GitHub username here when you set up GitHub Sponsors
+# Example: github: AppWhistler
+
+# Patreon
+patreon: # Add your Patreon username here
+# Example: patreon: appwhistler
+
+# Open Collective
+open_collective: # Add your Open Collective project name here
+# Example: open_collective: appwhistler
+
+# Ko-fi
+ko_fi: # Add your Ko-fi username here
+
+# Tidelift
+tidelift: # npm/package-name
+
+# Community Bridge
+community_bridge: # project-name
+
+# Liberapay
+liberapay: # username
+
+# IssueHunt
+issuehunt: # username
+
+# Otechie
+otechie: # username
+
+# LFX Mentorship (previously known as CommunityBridge)
+lfx_crowdfunding: # project-name
+
+# Custom URLs (up to 4)
+custom: # Add custom funding URLs here
+# Example: custom: ['https://www.buymeacoffee.com/appwhistler']
+
+---
+
+# 💰 Funding AppWhistler
+
+Thank you for considering supporting AppWhistler! Your contributions help us:
+
+- 🔍 Maintain and improve the fact-checking system
+- 🤖 Enhance AI models for better accuracy
+- ⛓️ Deploy and maintain blockchain infrastructure
+- 🌐 Expand to NewsTruth, FinanceTruth, and HealthTruth
+- 🎓 Provide free access to truth verification for everyone
+
+## Ways to Support
+
+1. **GitHub Sponsors**: Support monthly development
+2. **Open Collective**: Transparent funding for the community
+3. **Contribute Code**: Fix bugs, add features, improve docs
+4. **Spread the Word**: Star the repo, share with others
+5. **Report Issues**: Help us identify and fix problems
+
+## Our Commitment
+
+- **50% of proceeds** will be auto-donated to truth DAOs via smart contracts
+- **100% transparency** in how funds are used
+- **Community-first** development priorities
+
+Remember: AppWhistler will always be **free and open-source**! ❤️

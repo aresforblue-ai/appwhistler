@@ -1,13 +1,82 @@
-# AppWhistler — Truth-First App Recommender
+# 🔍 AppWhistler — Truth-First App Recommender
 
-Open-source AI-powered app recommender that fights disinformation through fact-checking and verification.
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
+[![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**Mission**  
+> Open-source AI-powered app recommender that fights disinformation through fact-checking and verification.
+
+## 🎯 Mission
+
 Empower users with unbiased, verified app choices and evolve into a blockchain-secured truth ecosystem against fake news, images, and claims.
 
-**Future**  
-Expanding to NewsTruth, FinanceTruth, HealthTruth, and beyond.  
+## 🚀 Vision
+
+Expanding to **NewsTruth**, **FinanceTruth**, **HealthTruth**, and beyond.  
 50% of any future proceeds auto-donated via smart contracts to truth DAOs.
+
+## ✨ Features
+
+- 🤖 **AI-Powered Analysis** - HuggingFace integration for intelligent fact-checking
+- ⛓️ **Blockchain Verification** - Ethereum-based proof of fact-checks
+- 🔒 **Privacy First** - GDPR/CCPA compliant with data export and deletion
+- 🎨 **Modern UI** - React 18 + Vite + Tailwind with dark mode
+- 📊 **GraphQL API** - Efficient data fetching with Apollo Server
+- 🔄 **Real-time Updates** - WebSocket support for live fact-checks
+
+## 📋 Quick Start
+
+### Prerequisites
+
+- Node.js >= 18.0.0
+- PostgreSQL >= 14
+- npm >= 9.0.0
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/aresforblue-ai/appwhistler.git
+cd appwhistler
+
+# Install dependencies
+npm install
+
+# Set up environment variables (see .env.example)
+cp .env.example .env
+# Edit .env with your configuration
+
+# Set up database
+psql -U postgres -d appwhistler -f database/schema.sql
+
+# Run migrations
+npm run migrate
+
+# Start development server
+npm run dev
+```
+
+## 🛠️ Development
+
+```bash
+# Start backend only
+npm run server
+
+# Start frontend only
+npm run client
+
+# Run scraper
+npm run scrape
+
+# Run tests
+npm test                  # All tests with coverage
+npm run test:unit        # Unit tests only
+npm run test:integration # Integration tests
+npm run test:e2e         # End-to-end tests
+
+# Deploy smart contract
+npm run deploy:contract
+```
 
 Made with ❤️ in Beaumont, Texas by Tyler Hughes (@AppWhistler) — November 2025
 

@@ -30,12 +30,16 @@
     "blockchain",
     "open-source"
   ],
-  "author": "Tyler Hughes <your-email@example.com>",
+  "author": "Tyler Hughes (@AppWhistler)",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/appwhistler.git"
+    "url": "https://github.com/aresforblue-ai/appwhistler.git"
   },
+  "bugs": {
+    "url": "https://github.com/aresforblue-ai/appwhistler/issues"
+  },
+  "homepage": "https://github.com/aresforblue-ai/appwhistler#readme",
   "dependencies": {
     "@huggingface/inference": "^2.6.4",
     "@sentry/node": "^7.108.0",
