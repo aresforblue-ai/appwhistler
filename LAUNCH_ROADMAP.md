@@ -66,22 +66,22 @@
 ### 6. Blockchain Enhancements
 
 - [ ] **Gas optimization** - Minimize transaction costs for fact-check stamping
-- [ ] **Multi-chain support** - Add Polygon/Arbitrum for lower fees
-- [x] **Wallet connection UI** - MetaMask, WalletConnect integration
-- [x] **Transaction history** - Display on-chain proofs in user profile
+- [x] **Multi-chain support** - Add Polygon/Arbitrum for lower fees ✅ COMPLETE (Nov 2025) - TransactionHistory supports 4 networks
+- [x] **Wallet connection UI** - MetaMask, WalletConnect integration ✅ COMPLETE (Nov 2025) - useWallet hook with full event handling
+- [x] **Transaction history** - Display on-chain proofs in user profile ✅ COMPLETE (Nov 2025) - GraphQL query + React component
 - [ ] **Smart contract audit** - Professional security review before mainnet
 - [ ] **DAO treasury setup** - Implement 50% auto-donation logic
 - [ ] **NFT badges** - Mint achievement NFTs for top contributors
 
 ### 7. AI & Fact-Checking
 
-- [ ] **Grok API integration** - Switch from HuggingFace to production-grade AI (if API key available)
-- [ ] **Multi-language support** - Detect and handle non-English claims
-- [ ] **Source credibility scoring** - Rank external sources by reliability
-- [ ] **Fact-check appeals** - Allow users to challenge verdicts with evidence
-- [ ] **Automated fact-checking** - Cron job to periodically re-verify old claims
-- [ ] **Image verification** - Reverse image search, metadata analysis
-- [ ] **Video fact-checking** - Transcript extraction, deepfake detection
+- [x] **Grok API integration** - Switch from HuggingFace to production-grade AI (if API key available) ✅ COMPLETE (Nov 2025) - Adapter pattern with fallback
+- [x] **Multi-language support** - Detect and handle non-English claims ✅ COMPLETE (Nov 2025) - 12 languages, auto-translate via Google Translate API
+- [x] **Source credibility scoring** - Rank external sources by reliability ✅ COMPLETE (Nov 2025) - 0-100 scoring with 30+ credible domains
+- [x] **Fact-check appeals** - Allow users to challenge verdicts with evidence ✅ COMPLETE (Nov 2025) - Full GraphQL mutation + admin review workflow
+- [x] **Automated fact-checking** - Cron job to periodically re-verify old claims ✅ COMPLETE (Nov 2025) - Daily 2AM cron, 90-day staleness threshold
+- [x] **Image verification** - Reverse image search, metadata analysis ✅ COMPLETE (Nov 2025) - Google/TinEye search, EXIF extraction, manipulation detection
+- [x] **Video fact-checking** - Transcript extraction, deepfake detection ✅ COMPLETE (Nov 2025) - AssemblyAI transcripts, Deepware Scanner integration
 
 ### 8. Monetization & Sustainability
 

@@ -4,10 +4,12 @@
 const { HfInference } = require('@huggingface/inference');
 const axios = require('axios');
 const { getSecret } = require('../config/secrets');
+const { detectLanguage, translateToEnglish } = require('./languageDetection');
 
 /**
  * Fact-checking system using Hugging Face models
  * Free alternative to Grok API for basic fact-checking
+ * Now supports multi-language claims with auto-translation
  */
 class FactChecker {
   constructor() {
@@ -25,7 +27,8 @@ class FactChecker {
   /**
    * Main fact-checking function
    * Combines multiple sources for best accuracy
-   * @param {string} claim - Claim to verify
+   * Now supports non-English claims with auto-translation
+   * @param {string} claim - Claim to verify (any language)
    * @param {string} category - Category for context
    * @returns {object} Comprehensive fact-check result
    */
@@ -40,14 +43,25 @@ class FactChecker {
 
       console.log('🔍 Starting multi-source fact-check...');
 
+      // Detect language and translate if needed
+      const languageDetection = await detectLanguage(claim);
+      let claimToCheck = claim;
+      let originalLanguage = languageDetection.language;
+
+      if (languageDetection.language !== 'en') {
+        console.log(`🌍 Detected ${languageDetection.name}, translating to English...`);
+        const translation = await translateToEnglish(claim, languageDetection.language);
+        claimToCheck = translation.translatedText;
+      }
+
       // Run checks in parallel for speed
       const [
         nlpResult,
         externalResults,
         sentimentAnalysis
       ] = await Promise.all([
-        this.checkWithNLP(claim),
-        this.checkExternalSources(claim),
+        this.checkWithNLP(claimToCheck),
+        this.checkExternalSources(claimToCheck),
         this.analyzeSentiment(claim)
       ]);
 
