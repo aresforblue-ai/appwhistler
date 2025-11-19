@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@huggingface/inference": "^2.6.4",
+    "@sendgrid/mail": "^8.1.6",
     "apollo-server-express": "^3.13.0",
     "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
@@ -42,14 +43,14 @@
     "pg": "^8.11.3",
     "puppeteer": "^21.6.1",
     "sanitize-html": "^2.17.0",
-    "uuid": "^9.0.1",
     "socket.io": "^4.6.2",
+    "uuid": "^9.0.1",
     "web3": "^4.3.0"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@babel/parser": "^7.26.3",
     "@babel/traverse": "^7.26.3",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
     "concurrently": "^8.2.2",
     "eslint": "^8.56.0",
     "glob": "^10.4.5",

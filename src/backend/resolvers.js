@@ -9,10 +9,14 @@ const {
   validateEmail, validatePassword, validateUsername, validateRating, 
   validateTextLength, validateVerdict, validateConfidenceScore, validateUrl 
 } = require('./utils/validation');
-const { 
-  createGraphQLError, handleValidationErrors, safeDatabaseOperation 
+const {
+  createGraphQLError, handleValidationErrors, safeDatabaseOperation
 } = require('./utils/errorHandler');
-const { sendPasswordResetEmail } = require('./utils/email');
+const {
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+  sendAccountLockoutEmail
+} = require('./utils/email');
 const {
   sanitizePlainText,
   sanitizeRichText,
@@ -294,6 +298,11 @@ const resolvers = {
       const token = generateToken(user.id);
       const refreshToken = generateToken(user.id, '30d');
 
+      // Send welcome email asynchronously (don't block registration)
+      sendWelcomeEmail(user.email, user.username, user.truth_score).catch(err => {
+        console.error('Failed to send welcome email:', err.message);
+      });
+
       return { token, refreshToken, user };
     },
 
@@ -353,6 +362,16 @@ const resolvers = {
         );
 
         if (lockoutUntil) {
+          // Send lockout notification email asynchronously
+          sendAccountLockoutEmail(
+            user.email,
+            user.username,
+            LOCKOUT_MINUTES,
+            lockoutUntil.toLocaleString()
+          ).catch(err => {
+            console.error('Failed to send lockout email:', err.message);
+          });
+
           throw createGraphQLError('Account locked after too many attempts. Please try again later.', 'ACCOUNT_LOCKED');
         }
 
@@ -385,7 +404,7 @@ const resolvers = {
       }
 
       const result = await context.pool.query(
-        'SELECT id, email FROM users WHERE email = $1',
+        'SELECT id, email, username FROM users WHERE email = $1',
         [normalizedEmail]
       );
 
@@ -417,7 +436,7 @@ const resolvers = {
         ]
       );
 
-      await sendPasswordResetEmail(user.email, token);
+      await sendPasswordResetEmail(user.email, token, user.username);
 
       return true;
     },
