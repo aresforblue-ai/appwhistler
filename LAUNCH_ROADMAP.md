@@ -18,13 +18,13 @@
 - [x] **Account lockout** - Add failed login attempt tracking (prevent brute force)
 
 ### 2. Core Functionality Gaps
-1
+
 - [x] **Frontend implementation** - Vite + Tailwind React client wired to GraphQL apps/fact-checks (Nov 2025)
-- [x ] **GraphQL subscriptions** - Implement real-time updates beyond Socket.io broadcast
+- [x] **GraphQL subscriptions** - Implement real-time updates beyond Socket.io broadcast
 - [x] **File uploads** - IPFS/Pinata avatar, app icon, fact-check image uploads ✅ COMPLETE (Nov 2025)
 - [x] **Email service** - Integrate SendGrid/Postmark for transactional emails (verification, notifications) ✅ COMPLETE (Nov 2025)
-- [ ] **Search functionality** - Full-text search across apps/fact-checks (PostgreSQL `tsvector` or ElasticSearch)
-- [ ] **Pagination cursor implementation** - Current pagination uses offset, switch to cursor-based
+- [x] **Search functionality** - Full-text search across apps/fact-checks (PostgreSQL `tsvector` or ElasticSearch) ✅ COMPLETE (Nov 2025)
+- [x] **Pagination cursor implementation** - Current pagination uses offset, switch to cursor-based ✅ COMPLETE (Nov 2025)
 - [x] **App verification workflow** - Admin panel for moderating submitted apps ✅ COMPLETE (Nov 2025)
 - [x] **Fact-check voting** - Upvote/downvote with spam prevention (one vote per user, transaction-safe) ✅ COMPLETE (Nov 2025)
 

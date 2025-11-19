@@ -128,6 +128,36 @@ const typeDefs = gql`
     endCursor: String
   }
 
+  # Cursor-based pagination (Relay-compliant, more performant)
+  type AppEdge {
+    node: App!
+    cursor: String!
+  }
+
+  type AppConnectionCursor {
+    edges: [AppEdge!]!
+    pageInfo: PageInfoCursor!
+    totalCount: Int
+  }
+
+  type FactCheckEdge {
+    node: FactCheck!
+    cursor: String!
+  }
+
+  type FactCheckConnectionCursor {
+    edges: [FactCheckEdge!]!
+    pageInfo: PageInfoCursor!
+    totalCount: Int
+  }
+
+  type PageInfoCursor {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
+    startCursor: String
+    endCursor: String
+  }
+
   # File upload response type
   type UploadResponse {
     success: Boolean!
@@ -218,6 +248,42 @@ const typeDefs = gql`
     pendingApps(limit: Int, offset: Int): AppConnection!
     pendingFactChecks(limit: Int, offset: Int): FactCheckConnection!
     adminStats: AdminStats!
+
+    # Cursor-based pagination queries (recommended for better performance)
+    appsCursor(
+      after: String
+      before: String
+      first: Int
+      last: Int
+      category: String
+      platform: String
+      search: String
+      minTruthRating: Float
+    ): AppConnectionCursor!
+
+    factChecksCursor(
+      after: String
+      before: String
+      first: Int
+      last: Int
+      category: String
+      verdict: String
+      search: String
+    ): FactCheckConnectionCursor!
+
+    pendingAppsCursor(
+      after: String
+      before: String
+      first: Int
+      last: Int
+    ): AppConnectionCursor!
+
+    pendingFactChecksCursor(
+      after: String
+      before: String
+      first: Int
+      last: Int
+    ): FactCheckConnectionCursor!
   }
 
   # Mutations (write operations)
