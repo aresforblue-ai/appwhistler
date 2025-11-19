@@ -1,0 +1,110 @@
+name: AppWhistler Code Check
+
+on:
+  push:
+    branches:
+      - main
+      - feature/*
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Set up Node.js (for frontend/backend)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # Lint code (ESLint + Prettier)
+      - name: Run ESLint
+        run: npm run lint
+        env:
+          CI: true
+
+      # Run unit and integration tests (Jest)
+      - name: Run tests
+        run: npm run test
+        env:
+          CI: true
+
+      # Validate Vite build (frontend)
+      - name: Build frontend
+        run: npm run build
+        env:
+          CDN_URL: https://cdn.example.com
+
+      # Check GraphQL schema
+      - name: Validate GraphQL schema
+        run: npm run graphql:validate
+        # Assumes a script like: "graphql:validate": "graphql-schema-linter src/schema.graphql"
+
+      # Security: npm audit
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+
+      # Set up Python for Slither (blockchain)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Install Slither for smart contract analysis
+      - name: Install Slither
+        run: pip install slither-analyzer
+
+      # Compile smart contracts (Hardhat)
+      - name: Compile smart contracts
+        run: npx hardhat compile
+        working-directory: ./contracts
+
+      # Run Slither for static analysis
+      - name: Run Slither
+        run: slither . --exclude-low --exclude-informational
+        working-directory: ./contracts
+        continue-on-error: true # Report issues but don't fail build
+
+      # Check CDN asset paths
+      - name: Validate CDN asset paths
+        run: |
+          if ! grep -q "CDN_URL=https://cdn.example.com" .env; then
+            echo "Error: CDN_URL not set correctly in .env"
+            exit 1
+          fi
+          npm run build && grep -r "https://cdn.example.com" dist/
+        env:
+          CDN_URL: https://cdn.example.com
+
+      # Generate report
+      - name: Generate check report
+        if: always()
+        run: |
+          echo "## AppWhistler Code Check Report" > report.md
+          echo "- ESLint: $([ -z "$(npm run lint --silent)" ] && echo 'Passed' || echo 'Failed')" >> report.md
+          echo "- Tests: $([ -z "$(npm run test --silent)" ] && echo 'Passed' || echo 'Failed')" >> report.md
+          echo "- Build: $([ -z "$(npm run build --silent)" ] && echo 'Passed' || echo 'Failed')" >> report.md
+          echo "- GraphQL Schema: $([ -z "$(npm run graphql:validate --silent)" ] && echo 'Passed' || echo 'Failed')" >> report.md
+          echo "- npm audit: $([ -z "$(npm audit --audit-level=moderate --silent)" ] && echo 'Passed' || echo 'Failed')" >> report.md
+          echo "- Smart Contracts: $([ -z "$(npx hardhat compile --silent)" ] && echo 'Passed' || echo 'Failed')" >> report.md
+          echo "- CDN Assets: $([ -n "$(grep -r 'https://cdn.example.com' dist/)" ] && echo 'Passed' || echo 'Failed')" >> report.md
+          cat report.md
+
+      # Upload report as artifact
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-check-report
+          path: report.md
