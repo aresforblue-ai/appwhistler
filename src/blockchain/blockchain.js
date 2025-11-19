@@ -3,6 +3,7 @@
 
 const { ethers } = require('ethers');
 const donationContractABI = require('./DonationContract.json'); // ABI from compiled contract
+const { getSecret } = require('../config/secrets');
 
 /**
  * Blockchain manager for AppWhistler
@@ -13,7 +14,7 @@ class BlockchainManager {
     this.provider = null;
     this.signer = null;
     this.donationContract = null;
-    this.network = process.env.NETWORK || 'goerli'; // Use testnet by default
+    this.network = getSecret('NETWORK', 'goerli'); // Use testnet by default
     
     this.initializeProvider();
   }
@@ -23,10 +24,13 @@ class BlockchainManager {
    */
   initializeProvider() {
     // Use Infura or Alchemy for free RPC access
-    const rpcUrl = process.env.INFURA_PROJECT_ID 
-      ? `https://${this.network}.infura.io/v3/${process.env.INFURA_PROJECT_ID}`
-      : process.env.ALCHEMY_API_KEY
-      ? `https://eth-${this.network}.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+    const infuraId = getSecret('INFURA_PROJECT_ID');
+    const alchemyKey = getSecret('ALCHEMY_API_KEY');
+
+    const rpcUrl = infuraId 
+      ? `https://${this.network}.infura.io/v3/${infuraId}`
+      : alchemyKey
+      ? `https://eth-${this.network}.g.alchemy.com/v2/${alchemyKey}`
       : null;
 
     if (!rpcUrl) {
@@ -38,8 +42,9 @@ class BlockchainManager {
     console.log(`✅ Blockchain provider initialized: ${this.network}`);
 
     // Initialize signer if private key is set (for server-side transactions)
-    if (process.env.PRIVATE_KEY) {
-      this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider);
+    const privateKey = getSecret('PRIVATE_KEY');
+    if (privateKey) {
+      this.signer = new ethers.Wallet(privateKey, this.provider);
       console.log(`✅ Wallet loaded: ${this.signer.address}`);
     }
   }
@@ -327,8 +332,9 @@ class BlockchainManager {
 const blockchainManager = new BlockchainManager();
 
 // Initialize donation contract if address is set
-if (process.env.DONATION_CONTRACT_ADDRESS) {
-  blockchainManager.connectDonationContract(process.env.DONATION_CONTRACT_ADDRESS);
+const donationContractAddress = getSecret('DONATION_CONTRACT_ADDRESS');
+if (donationContractAddress) {
+  blockchainManager.connectDonationContract(donationContractAddress);
 }
 
 module.exports = blockchainManager;

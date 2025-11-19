@@ -12,6 +12,16 @@ const rateLimit = require('express-rate-limit');
 const { Pool } = require('pg');
 require('dotenv').config();
 
+const {
+  loadSecrets,
+  getSecret,
+  getNumber,
+  getArray,
+  getDatabaseConfig
+} = require('../config/secrets');
+
+loadSecrets();
+
 // Import utilities
 const { validateEnvironment, printValidationResults, getFeatureFlags } = require('./utils/envValidator');
 const { createBatchLoaders } = require('./utils/dataLoader');
@@ -31,16 +41,9 @@ const app = express();
 const httpServer = createServer(app);
 
 // PostgreSQL connection pool (reuses connections for performance)
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'appwhistler',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD,
-  max: 20, // Maximum 20 connections
-  idleTimeoutMillis: 30000, // Close idle connections after 30s
-  connectionTimeoutMillis: 2000, // Timeout after 2s if can't connect
-});
+const pool = new Pool(getDatabaseConfig());
+
+const NODE_ENV = getSecret('NODE_ENV', 'development');
 
 // Test database connection
 pool.query('SELECT NOW()', (err, res) => {
@@ -53,15 +56,15 @@ pool.query('SELECT NOW()', (err, res) => {
 
 // Middleware: Security headers (protects against common attacks)
 app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production',
+  contentSecurityPolicy: NODE_ENV === 'production',
   crossOriginEmbedderPolicy: false,
 }));
 
 // Middleware: CORS (allows frontend to access API)
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+const allowedOrigins = getArray('ALLOWED_ORIGINS', ',', [
   'http://localhost:3000',
   'http://localhost:5000'
-];
+]);
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -76,8 +79,8 @@ app.use(cors({
 
 // Middleware: Rate limiting (prevents abuse)
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW || 15) * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || 100), // 100 requests per window
+  windowMs: getNumber('RATE_LIMIT_WINDOW', 15) * 60 * 1000, // 15 minutes
+  max: getNumber('RATE_LIMIT_MAX_REQUESTS', 100), // 100 requests per window
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -95,7 +98,7 @@ app.get('/health', async (req, res) => {
     res.json({ 
       status: 'healthy', 
       timestamp: new Date().toISOString(),
-      version: process.env.API_VERSION || 'v1'
+      version: getSecret('API_VERSION', 'v1')
     });
   } catch (error) {
     res.status(503).json({ 
@@ -147,8 +150,8 @@ const apolloServer = new ApolloServer({
       statusCode: error.extensions?.statusCode || 500
     };
   },
-  introspection: process.env.NODE_ENV !== 'production', // Disable in prod
-  playground: process.env.NODE_ENV !== 'production',
+  introspection: NODE_ENV !== 'production', // Disable in prod
+  playground: NODE_ENV !== 'production',
 });
 
 // Start Apollo server and apply middleware
@@ -201,7 +204,7 @@ app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ 
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: NODE_ENV === 'development' ? err.message : undefined
   });
 });
 
@@ -216,7 +219,7 @@ process.on('SIGTERM', async () => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 5000;
+const PORT = getNumber('PORT', 5000);
 
 startApolloServer().then(() => {
   httpServer.listen(PORT, () => {
@@ -228,7 +231,7 @@ startApolloServer().then(() => {
 📍 WebSockets:  ws://localhost:${PORT}
 📍 Health:      http://localhost:${PORT}/health
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Environment: ${process.env.NODE_ENV || 'development'}
+Environment: ${NODE_ENV}
     `);
   });
 }).catch(error => {

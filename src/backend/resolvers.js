@@ -11,13 +11,16 @@ const {
 const { 
   createGraphQLError, handleValidationErrors, safeDatabaseOperation 
 } = require('./utils/errorHandler');
+const { requireSecret } = require('../config/secrets');
+
+const JWT_SECRET = requireSecret('JWT_SECRET');
 
 // Helper: Generate JWT token
 function generateToken(userId, expiresIn = '7d') {
   try {
     return jwt.sign(
       { userId },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn }
     );
   } catch (error) {
@@ -28,7 +31,7 @@ function generateToken(userId, expiresIn = '7d') {
 // Helper: Verify JWT token
 function verifyToken(token) {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    return jwt.verify(token, JWT_SECRET);
   } catch (error) {
     throw createGraphQLError('Invalid or expired token', 'INVALID_TOKEN');
   }

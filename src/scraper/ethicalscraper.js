@@ -5,6 +5,7 @@ const puppeteer = require('puppeteer');
 const axios = require('axios');
 const robotsParser = require('robots-parser');
 const { Pool } = require('pg');
+const { getNumber, getSecret } = require('../config/secrets');
 
 /**
  * Ethical web scraper for AppWhistler
@@ -18,10 +19,10 @@ class EthicalScraper {
     
     // Rate limiting: Max requests per domain
     this.requestQueue = new Map();
-    this.rateLimit = parseInt(process.env.SCRAPER_RATE_LIMIT_MS) || 2000; // 2 seconds between requests
+    this.rateLimit = getNumber('SCRAPER_RATE_LIMIT_MS', 2000); // 2 seconds between requests
     
-    this.userAgent = process.env.SCRAPER_USER_AGENT || 
-      'AppWhistlerBot/1.0 (+https://appwhistler.org/bot)';
+    this.userAgent = getSecret('SCRAPER_USER_AGENT',
+      'AppWhistlerBot/1.0 (+https://appwhistler.org/bot)');
   }
 
   /**

@@ -3,6 +3,10 @@
 
 const jwt = require('jsonwebtoken');
 const { GraphQLError } = require('graphql');
+const { requireSecret, getSecret } = require('../../config/secrets');
+
+const JWT_SECRET = requireSecret('JWT_SECRET');
+const REFRESH_TOKEN_SECRET = getSecret('REFRESH_TOKEN_SECRET', JWT_SECRET);
 
 /**
  * Middleware to verify JWT token from request headers
@@ -21,7 +25,7 @@ async function authenticateToken(req, res, next) {
     }
 
     // Verify token signature and expiration
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     
     // Check if token is in blacklist (for logout functionality)
     const blacklisted = await checkTokenBlacklist(decoded.jti);
@@ -110,7 +114,7 @@ function generateAccessToken(payload, expiresIn = '7d') {
       role: payload.role || 'user',
       jti: generateJTI() // Unique token ID for blacklisting
     },
-    process.env.JWT_SECRET,
+    JWT_SECRET,
     { 
       expiresIn,
       issuer: 'appwhistler',
@@ -130,7 +134,7 @@ function generateRefreshToken(payload) {
       type: 'refresh',
       jti: generateJTI()
     },
-    process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET,
+    REFRESH_TOKEN_SECRET,
     { 
       expiresIn: '30d',
       issuer: 'appwhistler'
@@ -148,7 +152,7 @@ async function refreshAccessToken(refreshToken, pool) {
     // Verify refresh token
     const decoded = jwt.verify(
       refreshToken, 
-      process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET
+      REFRESH_TOKEN_SECRET
     );
 
     if (decoded.type !== 'refresh') {
@@ -256,9 +260,9 @@ const OAuth2 = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code,
-          client_id: process.env.GOOGLE_CLIENT_ID,
-          client_secret: process.env.GOOGLE_CLIENT_SECRET,
-          redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+          client_id: getSecret('GOOGLE_CLIENT_ID'),
+          client_secret: getSecret('GOOGLE_CLIENT_SECRET'),
+          redirect_uri: getSecret('GOOGLE_REDIRECT_URI'),
           grant_type: 'authorization_code'
         })
       });

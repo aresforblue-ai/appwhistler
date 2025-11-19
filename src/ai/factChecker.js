@@ -3,6 +3,7 @@
 
 const { HfInference } = require('@huggingface/inference');
 const axios = require('axios');
+const { getSecret } = require('../config/secrets');
 
 /**
  * Fact-checking system using Hugging Face models
@@ -10,7 +11,7 @@ const axios = require('axios');
  */
 class FactChecker {
   constructor() {
-    this.hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+    this.hf = new HfInference(getSecret('HUGGINGFACE_API_KEY'));
     this.cache = new Map(); // Cache results to reduce API calls
     
     // External fact-check APIs (all have free tiers)
@@ -116,10 +117,11 @@ class FactChecker {
 
     // Google Fact Check Tools API (free tier available)
     try {
-      if (process.env.GOOGLE_FACT_CHECK_API_KEY) {
+      const googleApiKey = getSecret('GOOGLE_FACT_CHECK_API_KEY');
+      if (googleApiKey) {
         const response = await axios.get(this.externalAPIs.googleFactCheck, {
           params: {
-            key: process.env.GOOGLE_FACT_CHECK_API_KEY,
+            key: googleApiKey,
             query: claim,
             languageCode: 'en'
           },

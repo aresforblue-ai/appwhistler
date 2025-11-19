@@ -2,6 +2,7 @@
 // xAI Grok API integration for AI-powered recommendations and fact-checking
 
 const axios = require('axios');
+const { getSecret } = require('../config/secrets');
 
 /**
  * Grok API Client for AppWhistler
@@ -9,8 +10,8 @@ const axios = require('axios');
  */
 class GrokClient {
   constructor() {
-    this.apiKey = process.env.GROK_API_KEY;
-    this.apiUrl = process.env.GROK_API_URL || 'https://api.x.ai/v1';
+    this.apiKey = getSecret('GROK_API_KEY');
+    this.apiUrl = getSecret('GROK_API_URL', 'https://api.x.ai/v1');
     this.model = 'grok-beta'; // Update based on xAI docs
     
     if (!this.apiKey) {
