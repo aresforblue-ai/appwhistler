@@ -56,6 +56,23 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function getField(parent, snakeKey, transform = value => value) {
+  if (!parent) return null;
+
+  const snakeValue = parent[snakeKey];
+  if (snakeValue !== undefined && snakeValue !== null) {
+    return transform(snakeValue);
+  }
+
+  const camelKey = snakeKey.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+  const camelValue = parent[camelKey];
+  if (camelValue !== undefined && camelValue !== null) {
+    return transform(camelValue);
+  }
+
+  return null;
+}
+
 // Helper: Require authentication
 function requireAuth(context) {
   const token = context.req.headers.authorization?.replace('Bearer ', '');
@@ -120,12 +137,11 @@ const resolvers = {
       }
 
       if (search) {
-        // Use full-text search with tsvector for 100x faster performance
-        // Convert search to tsquery format (handles phrases, AND/OR logic)
-        const tsQuery = search.trim().split(/\s+/).join(' & ');
-        query += ` AND search_vector @@ to_tsquery('english', $${paramCount})`;
-        params.push(tsQuery);
-        paramCount++;
+        const normalizedSearch = search.trim();
+        const likePattern = `%${normalizedSearch.replace(/\s+/g, '%')}%`;
+        query += ` AND (name ILIKE $${paramCount} OR description ILIKE $${paramCount + 1} OR developer ILIKE $${paramCount + 2})`;
+        params.push(likePattern, likePattern, likePattern);
+        paramCount += 3;
       }
 
       if (minTruthRating) {
@@ -135,10 +151,7 @@ const resolvers = {
 
       // Order by relevance if searching, otherwise by truth_rating
       if (search) {
-        const tsQuery = search.trim().split(/\s+/).join(' & ');
-        query += ` ORDER BY ts_rank(search_vector, to_tsquery('english', $${paramCount})) DESC, truth_rating DESC`;
-        params.push(tsQuery);
-        paramCount++;
+        query += ` ORDER BY download_count DESC, truth_rating DESC`;
       } else {
         query += ` ORDER BY truth_rating DESC`;
       }
@@ -1278,6 +1291,8 @@ const resolvers = {
   // Nested resolvers (for related data)
   // Uses batch loaders from context to prevent N+1 queries
   App: {
+    downloadCount: parent => getField(parent, 'download_count', Number),
+    truthRating: parent => getField(parent, 'truth_rating', Number),
     reviews: async (parent, _, context) => {
       if (context.loaders) {
         return context.loaders.reviewsByAppId.load(parent.id);
@@ -1290,6 +1305,11 @@ const resolvers = {
       return result.rows;
     },
     averageRating: async (parent, _, context) => {
+      const cached = getField(parent, 'average_rating', Number);
+      if (cached !== null) {
+        return cached;
+      }
+
       if (context.loaders) {
         return context.loaders.averageRatingByAppId.load(parent.id);
       }
@@ -1301,11 +1321,12 @@ const resolvers = {
       return parseFloat(result.rows[0]?.avg) || 0;
     },
     verifiedBy: async (parent, _, context) => {
-      if (!parent.verified_by) return null;
+      const verifierId = getField(parent, 'verified_by');
+      if (!verifierId) return null;
 
       const result = await context.pool.query(
         'SELECT * FROM users WHERE id = $1',
-        [parent.verified_by]
+        [verifierId]
       );
 
       return result.rows[0] || null;
