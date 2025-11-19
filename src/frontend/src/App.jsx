@@ -13,6 +13,10 @@ import {
 import NotificationCenter from './components/NotificationCenter';
 import ErrorBoundary from './components/ErrorBoundary';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
+import { useResponsive } from './hooks/useResponsive';
+import { AccessibilityHelper } from './components/AccessibilityHelper';
+import { auditAccessibility, reportA11yMetrics } from './utils/a11yChecker';
+import { detectSystemColorScheme, listenToSystemColorScheme, reportDarkModeMetrics } from './utils/darkModeValidator';
 
 const HERO_FEATURES = [
   'Realtime disinformation radar',
@@ -64,6 +68,10 @@ const PROFILE_BADGES = [
  * Features: Dark mode, app search, fact-checking, personalized feed
  */
 function App() {
+  // Responsive design hook
+  const screenSize = useResponsive();
+  
+  // Dark mode state
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('appwhistler_darkmode') === 'true');
   const [user, setUser] = useState(() => {
     try {
@@ -113,6 +121,42 @@ function App() {
       localStorage.removeItem('appwhistler_token');
     }
   }, [authToken]);
+
+  // Accessibility: Enable keyboard focus styles and run audit in development
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        auditAccessibility();
+        reportA11yMetrics();
+      } catch (err) {
+        console.debug('[A11y] Audit skipped:', err.message);
+      }
+    }
+  }, []);
+
+  // Dark mode: Detect system color scheme preference and listen for changes
+  useEffect(() => {
+    const systemPreference = detectSystemColorScheme();
+    if (systemPreference && !localStorage.getItem('appwhistler_darkmode')) {
+      setDarkMode(systemPreference);
+    }
+
+    const unsubscribe = listenToSystemColorScheme((isDark) => {
+      if (!localStorage.getItem('appwhistler_darkmode')) {
+        setDarkMode(isDark);
+      }
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        reportDarkModeMetrics();
+      } catch (err) {
+        console.debug('[Dark Mode] Metrics skipped:', err.message);
+      }
+    }
+
+    return unsubscribe;
+  }, []);
 
   const loadApps = useCallback(async (params = {}) => {
     setAppsLoading(true);
@@ -232,38 +276,40 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <NotificationCenter />
-      {user && !hasOnboarded && <OnboardingTutorial userId={user.id} />}
-      <div className={`relative min-h-screen overflow-hidden ${darkMode ? 'bg-slate-950' : 'bg-slate-50'} transition-colors duration-500`}>
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-24 -right-16 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="absolute top-1/3 -left-16 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
-      </div>
+      <AccessibilityHelper>
+        <NotificationCenter />
+        {user && !hasOnboarded && <OnboardingTutorial userId={user.id} />}
+        <a href="#main-content" className="sr-only focus:not-sr-only">Skip to main content</a>
+        <div className={`relative min-h-screen overflow-hidden ${darkMode ? 'bg-slate-950' : 'bg-slate-50'} transition-colors duration-500`}>
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-24 -right-16 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
+          <div className="absolute top-1/3 -left-16 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
+        </div>
 
-      <div className="relative z-10 min-h-screen flex flex-col">
-        <Header
-          darkMode={darkMode}
-          setDarkMode={setDarkMode}
-          user={user}
-          onLogout={handleLogout}
-          onSignIn={() => setAuthModalOpen(true)}
-        />
+        <div className="relative z-10 min-h-screen flex flex-col">
+          <Header
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            user={user}
+            onLogout={handleLogout}
+            onSignIn={() => setAuthModalOpen(true)}
+          />
 
-        <HeroSection darkMode={darkMode} user={user} factChecks={factCheckCount} />
+          <HeroSection darkMode={darkMode} user={user} factChecks={factCheckCount} />
 
-        <Navigation activeTab={activeTab} setActiveTab={setActiveTab} darkMode={darkMode} />
+          <Navigation activeTab={activeTab} setActiveTab={setActiveTab} darkMode={darkMode} />
 
-        <main className="container mx-auto px-4 py-10 w-full max-w-6xl flex-1">
-          {activeTab === 'discover' && (
-            <DiscoverTab
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              apps={apps}
-              darkMode={darkMode}
-              activeFilter={activeFilter}
-              setActiveFilter={setActiveFilter}
-              loading={appsLoading}
+          <main id="main-content" className="container mx-auto px-4 py-10 w-full max-w-6xl flex-1" role="main" aria-label="Main content">
+            {activeTab === 'discover' && (
+              <DiscoverTab
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                apps={apps}
+                darkMode={darkMode}
+                activeFilter={activeFilter}
+                setActiveFilter={setActiveFilter}
+                loading={appsLoading}
               error={appsError}
               updatedAt={appsUpdatedAt}
               onRefresh={handleManualRefresh}
@@ -301,6 +347,7 @@ function App() {
         />
       )}
     </div>
+      </AccessibilityHelper>
     </ErrorBoundary>
   );
 }
