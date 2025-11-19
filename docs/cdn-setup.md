@@ -239,7 +239,6 @@ Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'
 
 ## Testing CDN Setup
 
-
 ### 1. Verify Asset URLs
 
 ```bash

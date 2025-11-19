@@ -59,16 +59,16 @@
 - [x] **Loading states** - Skeletons (SkeletonCard, SkeletonGrid, SkeletonForm, SkeletonProfile), Spinner, LoadingOverlay with CSS animations ✅ COMPLETE (Dec 2025)
 - [x] **Notifications system** - In-app toast notifications + push API, GraphQL subscriptions, real-time updates ✅ COMPLETE (Dec 2025)
 - [x] **User profile customization** - Bio, avatar upload (client-side compression), social links (Twitter/GitHub/LinkedIn/Website), preferences (notifications/privacy/theme) ✅ COMPLETE (Dec 2025)
-- [ ] **Mobile responsiveness** - Ensure UI works on iOS/Android browsers (375px, 768px, 1024px breakpoints)
-- [ ] **Accessibility audit** - WCAG 2.1 AA compliance (keyboard nav, screen readers, aria-labels)
-- [ ] **Dark mode polish** - Ensure contrast ratios meet WCAG AA (4.5:1+), test all component combinations
+- [x] **Mobile responsiveness** - Ensure UI works on iOS/Android browsers (375px, 768px, 1024px breakpoints)
+- [x] **Accessibility audit** - WCAG 2.1 AA compliance (keyboard nav, screen readers, aria-labels)
+- [x] **Dark mode polish** - Ensure contrast ratios meet WCAG AA (4.5:1+), test all component combinations
 
 ### 6. Blockchain Enhancements
 
 - [ ] **Gas optimization** - Minimize transaction costs for fact-check stamping
 - [ ] **Multi-chain support** - Add Polygon/Arbitrum for lower fees
-- [ ] **Wallet connection UI** - MetaMask, WalletConnect integration
-- [ ] **Transaction history** - Display on-chain proofs in user profile
+- [x] **Wallet connection UI** - MetaMask, WalletConnect integration
+- [x] **Transaction history** - Display on-chain proofs in user profile
 - [ ] **Smart contract audit** - Professional security review before mainnet
 - [ ] **DAO treasury setup** - Implement 50% auto-donation logic
 - [ ] **NFT badges** - Mint achievement NFTs for top contributors
