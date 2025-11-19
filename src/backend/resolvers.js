@@ -5,9 +5,10 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { GraphQLError } = require('graphql');
-const { 
-  validateEmail, validatePassword, validateUsername, validateRating, 
-  validateTextLength, validateVerdict, validateConfidenceScore, validateUrl 
+const {
+  validateEmail, validatePassword, validateUsername, validateRating,
+  validateTextLength, validateVerdict, validateConfidenceScore, validateUrl,
+  validateVote
 } = require('./utils/validation');
 const {
   createGraphQLError, handleValidationErrors, safeDatabaseOperation
@@ -62,6 +63,32 @@ function requireAuth(context) {
     throw createGraphQLError('Authentication required', 'UNAUTHENTICATED');
   }
   return verifyToken(token);
+}
+
+// Helper: Require specific role (admin or moderator)
+async function requireRole(context, allowedRoles = ['admin', 'moderator']) {
+  const { userId } = requireAuth(context);
+
+  const result = await context.pool.query(
+    'SELECT role FROM users WHERE id = $1',
+    [userId]
+  );
+
+  if (result.rows.length === 0) {
+    throw createGraphQLError('User not found', 'UNAUTHENTICATED');
+  }
+
+  const userRole = result.rows[0].role;
+
+  if (!allowedRoles.includes(userRole)) {
+    throw createGraphQLError(
+      `Insufficient permissions. Required role: ${allowedRoles.join(' or ')}. Your role: ${userRole}`,
+      'FORBIDDEN'
+    );
+  }
+
+  console.log(`✅ Role check passed: User ${userId} has role ${userRole}`);
+  return { userId, role: userRole };
 }
 
 const resolvers = {
@@ -232,9 +259,89 @@ const resolvers = {
       }
       
       query += ' ORDER BY created_at DESC';
-      
+
       const result = await context.pool.query(query, params);
       return result.rows;
+    },
+
+    // Admin: Get pending apps (unverified)
+    pendingApps: async (_, { limit = 20, offset = 0 }, context) => {
+      await requireRole(context, ['admin', 'moderator']);
+
+      const result = await context.pool.query(
+        `SELECT * FROM apps
+         WHERE is_verified = false
+         ORDER BY created_at ASC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      );
+
+      return {
+        edges: result.rows,
+        pageInfo: {
+          hasNextPage: result.rows.length === limit,
+          hasPreviousPage: offset > 0,
+          startCursor: offset.toString(),
+          endCursor: (offset + result.rows.length).toString()
+        }
+      };
+    },
+
+    // Admin: Get pending fact-checks (unverified)
+    pendingFactChecks: async (_, { limit = 20, offset = 0 }, context) => {
+      await requireRole(context, ['admin', 'moderator']);
+
+      const result = await context.pool.query(
+        `SELECT * FROM fact_checks
+         WHERE verified_by IS NULL
+         ORDER BY created_at ASC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      );
+
+      return {
+        edges: result.rows,
+        pageInfo: {
+          hasNextPage: result.rows.length === limit,
+          hasPreviousPage: offset > 0,
+          startCursor: offset.toString(),
+          endCursor: (offset + result.rows.length).toString()
+        }
+      };
+    },
+
+    // Admin: Get dashboard statistics
+    adminStats: async (_, __, context) => {
+      await requireRole(context, ['admin', 'moderator']);
+
+      const stats = await context.pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM apps WHERE is_verified = false) as pending_apps_count,
+          (SELECT COUNT(*) FROM fact_checks WHERE verified_by IS NULL) as pending_fact_checks_count,
+          (SELECT COUNT(*) FROM users) as total_users,
+          (SELECT COUNT(*) FROM apps WHERE is_verified = true) as total_verified_apps,
+          (SELECT COUNT(*) FROM fact_checks WHERE verified_by IS NOT NULL) as total_verified_fact_checks
+      `);
+
+      const activity = await context.pool.query(
+        `SELECT action, metadata, created_at, user_id
+         FROM activity_log
+         ORDER BY created_at DESC
+         LIMIT 20`
+      );
+
+      return {
+        pendingAppsCount: parseInt(stats.rows[0].pending_apps_count),
+        pendingFactChecksCount: parseInt(stats.rows[0].pending_fact_checks_count),
+        totalUsers: parseInt(stats.rows[0].total_users),
+        totalVerifiedApps: parseInt(stats.rows[0].total_verified_apps),
+        totalVerifiedFactChecks: parseInt(stats.rows[0].total_verified_fact_checks),
+        recentActivity: activity.rows.map(row => ({
+          action: row.action,
+          timestamp: row.created_at,
+          metadata: row.metadata
+        }))
+      };
     },
   },
 
@@ -563,6 +670,106 @@ const resolvers = {
       return factCheck;
     },
 
+    // Vote on fact-check (upvote/downvote with spam prevention)
+    voteFactCheck: async (_, { id, vote }, context) => {
+      const { userId } = requireAuth(context);
+
+      // Validate vote value (+1 or -1)
+      const voteValidation = validateVote(vote);
+      if (!voteValidation.valid) {
+        throw createGraphQLError(voteValidation.message, 'BAD_USER_INPUT');
+      }
+
+      // Validate fact-check ID
+      if (!id || typeof id !== 'string') {
+        throw createGraphQLError('Fact-check ID is required', 'BAD_USER_INPUT');
+      }
+
+      // Use transaction for atomicity (prevents race conditions)
+      await context.pool.query('BEGIN');
+
+      try {
+        // 1. Check if fact-check exists
+        const factCheckResult = await context.pool.query(
+          'SELECT id, upvotes, downvotes FROM fact_checks WHERE id = $1',
+          [id]
+        );
+
+        if (factCheckResult.rows.length === 0) {
+          await context.pool.query('ROLLBACK');
+          throw createGraphQLError('Fact-check not found', 'NOT_FOUND');
+        }
+
+        // 2. Check if user has already voted
+        const existingVoteResult = await context.pool.query(
+          'SELECT vote_value FROM fact_check_votes WHERE fact_check_id = $1 AND user_id = $2',
+          [id, userId]
+        );
+
+        const existingVote = existingVoteResult.rows[0];
+        const previousVoteValue = existingVote ? existingVote.vote_value : 0;
+
+        // 3. If user is changing vote or voting for first time
+        if (previousVoteValue !== vote) {
+          // Upsert vote (INSERT or UPDATE if exists)
+          await context.pool.query(
+            `INSERT INTO fact_check_votes (fact_check_id, user_id, vote_value)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (fact_check_id, user_id)
+             DO UPDATE SET vote_value = $3, updated_at = CURRENT_TIMESTAMP`,
+            [id, userId, vote]
+          );
+
+          // 4. Recalculate vote counters
+          // Remove previous vote impact and add new vote
+          let upvoteDelta = 0;
+          let downvoteDelta = 0;
+
+          if (previousVoteValue === 1) {
+            upvoteDelta -= 1; // Remove previous upvote
+          } else if (previousVoteValue === -1) {
+            downvoteDelta -= 1; // Remove previous downvote
+          }
+
+          if (vote === 1) {
+            upvoteDelta += 1; // Add new upvote
+          } else if (vote === -1) {
+            downvoteDelta += 1; // Add new downvote
+          }
+
+          // Update fact_check counters
+          await context.pool.query(
+            `UPDATE fact_checks
+             SET upvotes = GREATEST(0, upvotes + $1),
+                 downvotes = GREATEST(0, downvotes + $2),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $3`,
+            [upvoteDelta, downvoteDelta, id]
+          );
+
+          console.log(`✅ Vote recorded: User ${userId} voted ${vote > 0 ? 'upvote' : 'downvote'} on fact-check ${id}`);
+        } else {
+          console.log(`ℹ️ No change: User ${userId} already voted ${vote > 0 ? 'upvote' : 'downvote'} on fact-check ${id}`);
+        }
+
+        // Commit transaction
+        await context.pool.query('COMMIT');
+
+        // 5. Return updated fact-check
+        const updatedFactCheck = await context.pool.query(
+          'SELECT * FROM fact_checks WHERE id = $1',
+          [id]
+        );
+
+        return updatedFactCheck.rows[0];
+      } catch (error) {
+        // Rollback on any error
+        await context.pool.query('ROLLBACK');
+        console.error('Vote fact-check error:', error);
+        throw error;
+      }
+    },
+
     // Submit review
     submitReview: async (_, { input }, context) => {
       const { userId } = requireAuth(context);
@@ -707,6 +914,133 @@ const resolvers = {
 
       return result.rows[0];
     },
+
+    // Admin: Verify an app
+    verifyApp: async (_, { id }, context) => {
+      const { userId } = await requireRole(context, ['admin', 'moderator']);
+
+      const appCheck = await context.pool.query(
+        'SELECT id, is_verified FROM apps WHERE id = $1',
+        [id]
+      );
+
+      if (appCheck.rows.length === 0) {
+        throw createGraphQLError('App not found', 'NOT_FOUND');
+      }
+
+      if (appCheck.rows[0].is_verified) {
+        throw createGraphQLError('App is already verified', 'BAD_USER_INPUT');
+      }
+
+      const result = await context.pool.query(
+        `UPDATE apps
+         SET is_verified = true,
+             verified_by = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [userId, id]
+      );
+
+      await context.pool.query(
+        `INSERT INTO activity_log (user_id, action, metadata)
+         VALUES ($1, $2, $3)`,
+        [userId, 'verify_app', JSON.stringify({ app_id: id })]
+      );
+
+      console.log(`✅ App ${id} verified by user ${userId}`);
+      return result.rows[0];
+    },
+
+    // Admin: Verify a fact-check
+    verifyFactCheck: async (_, { id }, context) => {
+      const { userId } = await requireRole(context, ['admin', 'moderator']);
+
+      const fcCheck = await context.pool.query(
+        'SELECT id, verified_by, submitted_by FROM fact_checks WHERE id = $1',
+        [id]
+      );
+
+      if (fcCheck.rows.length === 0) {
+        throw createGraphQLError('Fact-check not found', 'NOT_FOUND');
+      }
+
+      if (fcCheck.rows[0].verified_by) {
+        throw createGraphQLError('Fact-check is already verified', 'BAD_USER_INPUT');
+      }
+
+      const result = await context.pool.query(
+        `UPDATE fact_checks
+         SET verified_by = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING *`,
+        [userId, id]
+      );
+
+      // Award +50 truth score bonus to submitter
+      if (result.rows[0].submitted_by) {
+        await context.pool.query(
+          'UPDATE users SET truth_score = truth_score + 50 WHERE id = $1',
+          [result.rows[0].submitted_by]
+        );
+      }
+
+      await context.pool.query(
+        `INSERT INTO activity_log (user_id, action, metadata)
+         VALUES ($1, $2, $3)`,
+        [userId, 'verify_fact_check', JSON.stringify({ fact_check_id: id })]
+      );
+
+      console.log(`✅ Fact-check ${id} verified by user ${userId}`);
+      return result.rows[0];
+    },
+
+    // Admin: Reject an app
+    rejectApp: async (_, { id, reason }, context) => {
+      const { userId } = await requireRole(context, ['admin', 'moderator']);
+
+      const result = await context.pool.query(
+        'DELETE FROM apps WHERE id = $1 RETURNING *',
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        throw createGraphQLError('App not found', 'NOT_FOUND');
+      }
+
+      await context.pool.query(
+        `INSERT INTO activity_log (user_id, action, metadata)
+         VALUES ($1, $2, $3)`,
+        [userId, 'reject_app', JSON.stringify({ app_id: id, reason: reason || 'No reason provided' })]
+      );
+
+      console.log(`❌ App ${id} rejected by user ${userId}: ${reason || 'No reason provided'}`);
+      return true;
+    },
+
+    // Admin: Reject a fact-check
+    rejectFactCheck: async (_, { id, reason }, context) => {
+      const { userId } = await requireRole(context, ['admin', 'moderator']);
+
+      const result = await context.pool.query(
+        'DELETE FROM fact_checks WHERE id = $1 RETURNING *',
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        throw createGraphQLError('Fact-check not found', 'NOT_FOUND');
+      }
+
+      await context.pool.query(
+        `INSERT INTO activity_log (user_id, action, metadata)
+         VALUES ($1, $2, $3)`,
+        [userId, 'reject_fact_check', JSON.stringify({ fact_check_id: id, reason: reason || 'No reason provided' })]
+      );
+
+      console.log(`❌ Fact-check ${id} rejected by user ${userId}: ${reason || 'No reason provided'}`);
+      return true;
+    },
   },
 
   // Nested resolvers (for related data)
@@ -733,6 +1067,16 @@ const resolvers = {
         [parent.id]
       );
       return parseFloat(result.rows[0]?.avg) || 0;
+    },
+    verifiedBy: async (parent, _, context) => {
+      if (!parent.verified_by) return null;
+
+      const result = await context.pool.query(
+        'SELECT * FROM users WHERE id = $1',
+        [parent.verified_by]
+      );
+
+      return result.rows[0] || null;
     },
   },
 

@@ -224,6 +224,23 @@ function validateVerdict(verdict) {
 }
 
 /**
+ * Validate vote value (upvote/downvote)
+ * @param {number} vote
+ * @returns {object} { valid: boolean, message?: string }
+ */
+function validateVote(vote) {
+  if (vote === null || vote === undefined || typeof vote !== 'number') {
+    return { valid: false, message: 'Vote must be a number' };
+  }
+
+  if (vote !== 1 && vote !== -1) {
+    return { valid: false, message: 'Vote must be +1 (upvote) or -1 (downvote)' };
+  }
+
+  return { valid: true };
+}
+
+/**
  * Batch validate multiple inputs
  * @param {object} input - Object with fields to validate
  * @param {object} rules - Validation rules { fieldName: validatorFunction }
@@ -231,14 +248,14 @@ function validateVerdict(verdict) {
  */
 function validateInput(input, rules) {
   const errors = {};
-  
+
   for (const [field, validator] of Object.entries(rules)) {
     const result = validator(input[field]);
     if (!result.valid) {
       errors[field] = result.message;
     }
   }
-  
+
   return {
     valid: Object.keys(errors).length === 0,
     errors: Object.keys(errors).length > 0 ? errors : undefined
@@ -256,5 +273,6 @@ module.exports = {
   validateStringArray,
   validateConfidenceScore,
   validateVerdict,
+  validateVote,
   validateInput
 };

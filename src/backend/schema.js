@@ -41,6 +41,7 @@ const typeDefs = gql`
     downloadCount: Int!
     platform: String!
     isVerified: Boolean!
+    verifiedBy: User
     createdAt: DateTime!
     updatedAt: DateTime!
     reviews: [Review!]
@@ -212,6 +213,11 @@ const typeDefs = gql`
     # Bounties
     bounties(status: String): [Bounty!]!
     bounty(id: ID!): Bounty
+
+    # Admin queries (require admin/moderator role)
+    pendingApps(limit: Int, offset: Int): AppConnection!
+    pendingFactChecks(limit: Int, offset: Int): FactCheckConnection!
+    adminStats: AdminStats!
   }
 
   # Mutations (write operations)
@@ -246,6 +252,28 @@ const typeDefs = gql`
     # User actions
     updateProfile(username: String, walletAddress: String): User!
     updateAvatar(avatarUrl: String!, thumbnailUrl: String, ipfsHash: String!): User!
+
+    # Admin mutations (require admin/moderator role)
+    verifyApp(id: ID!): App!
+    verifyFactCheck(id: ID!): FactCheck!
+    rejectApp(id: ID!, reason: String): Boolean!
+    rejectFactCheck(id: ID!, reason: String): Boolean!
+  }
+
+  # Admin dashboard types
+  type AdminStats {
+    pendingAppsCount: Int!
+    pendingFactChecksCount: Int!
+    totalUsers: Int!
+    totalVerifiedApps: Int!
+    totalVerifiedFactChecks: Int!
+    recentActivity: [ActivityItem!]!
+  }
+
+  type ActivityItem {
+    action: String!
+    timestamp: DateTime!
+    metadata: JSON
   }
 
   # Subscriptions (real-time updates via WebSocket)

@@ -25,8 +25,8 @@
 - [x] **Email service** - Integrate SendGrid/Postmark for transactional emails (verification, notifications) ✅ COMPLETE (Nov 2025)
 - [ ] **Search functionality** - Full-text search across apps/fact-checks (PostgreSQL `tsvector` or ElasticSearch)
 - [ ] **Pagination cursor implementation** - Current pagination uses offset, switch to cursor-based
-- [ ] **App verification workflow** - Admin panel for moderating submitted apps
-- [ ] **Fact-check voting** - Implement upvote/downvote with spam prevention
+- [x] **App verification workflow** - Admin panel for moderating submitted apps ✅ COMPLETE (Nov 2025)
+- [x] **Fact-check voting** - Upvote/downvote with spam prevention (one vote per user, transaction-safe) ✅ COMPLETE (Nov 2025)
 
 ### 3. Testing & Quality
 
