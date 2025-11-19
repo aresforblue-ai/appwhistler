@@ -1,0 +1,58 @@
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "aresforblue-ai"
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    ignore:
+      # Ignore major version updates for now to avoid breaking changes
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      # Group development dependencies together
+      dev-dependencies:
+        patterns:
+          - "@types/*"
+          - "eslint*"
+          - "jest*"
+          - "@playwright/*"
+          - "prettier"
+          - "nodemon"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group production dependencies
+      production-dependencies:
+        patterns:
+          - "express*"
+          - "apollo-*"
+          - "graphql*"
+          - "pg*"
+        update-types:
+          - "patch"
+
+  # Enable security updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    reviewers:
+      - "aresforblue-ai"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"

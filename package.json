@@ -14,6 +14,8 @@
     "test:e2e": "playwright test",
     "test:load": "artillery run tests/load/trending.yml",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "lint": "eslint src tests --ext .js,.jsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint src tests --ext .js,.jsx --fix",
     "scrape": "node src/scraper/ethicalScraper.js",
     "deploy:contract": "hardhat run scripts/deploy.js --network goerli",
     "audit:sql": "node scripts/audit-sql.js",
@@ -34,8 +36,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/appwhistler.git"
+    "url": "https://github.com/aresforblue-ai/appwhistler.git"
   },
+  "bugs": {
+    "url": "https://github.com/aresforblue-ai/appwhistler/issues"
+  },
+  "homepage": "https://github.com/aresforblue-ai/appwhistler#readme",
   "dependencies": {
     "@huggingface/inference": "^2.6.4",
     "@sentry/node": "^7.108.0",

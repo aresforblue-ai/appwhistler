@@ -48,4 +48,27 @@ temp/
 # Database
 *.sqlite
 *.db
-*.sql
+# Keep schema.sql but ignore data dumps
+*dump.sql
+*backup.sql
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/

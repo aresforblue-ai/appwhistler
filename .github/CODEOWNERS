@@ -1,0 +1,37 @@
+# AppWhistler Code Owners
+# These owners will be automatically requested for review when someone opens a pull request.
+
+# Default owners for everything in the repo
+* @aresforblue-ai
+
+# Backend and API
+/src/backend/ @aresforblue-ai
+/src/ai/ @aresforblue-ai
+/src/blockchain/ @aresforblue-ai
+/src/scraper/ @aresforblue-ai
+
+# Frontend
+/src/frontend/ @aresforblue-ai
+
+# Database
+/database/ @aresforblue-ai
+
+# Tests
+/tests/ @aresforblue-ai
+
+# Configuration files
+*.json @aresforblue-ai
+*.yml @aresforblue-ai
+*.yaml @aresforblue-ai
+*.config.* @aresforblue-ai
+
+# Documentation
+/docs/ @aresforblue-ai
+*.md @aresforblue-ai
+
+# Security and compliance
+SECURITY.md @aresforblue-ai
+/scripts/audit-sql.js @aresforblue-ai
+
+# GitHub workflows and actions
+/.github/ @aresforblue-ai
