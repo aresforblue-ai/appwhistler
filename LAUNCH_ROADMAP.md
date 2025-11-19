@@ -40,11 +40,11 @@
 
 ### 4. Performance & Scalability
 
-- [ ] **Database indexing** - Add indexes on frequent query columns (truth_rating, created_at, category)
+- [x] **Database indexing** - Add indexes on frequent query columns (truth_rating, created_at, category)
 - [ ] **Connection pooling tuning** - Benchmark and optimize pg.Pool settings
 - [ ] **Redis caching** - Cache frequent queries, fact-check results, leaderboard
 - [ ] **CDN setup** - CloudFlare for static assets, API caching
-- [ ] **Image optimization** - Compress/resize uploaded images, generate thumbnails
+- [x] **Image optimization** - Compress/resize uploaded images, generate thumbnails
 - [ ] **GraphQL query complexity limits** - Prevent abuse of nested queries
 - [ ] **Background job queue** - Bull/BullMQ for scraping, blockchain transactions, email sending
 

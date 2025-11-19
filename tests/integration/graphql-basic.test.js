@@ -24,6 +24,7 @@ function createTestPool() {
       truth_rating NUMERIC,
       download_count INTEGER,
       description TEXT,
+      developer TEXT,
       is_verified BOOLEAN DEFAULT false,
       platform TEXT DEFAULT 'android',
       created_at TIMESTAMP DEFAULT NOW(),
@@ -32,10 +33,10 @@ function createTestPool() {
   `);
 
   db.public.none(`
-    INSERT INTO apps (id, name, package_id, category, truth_rating, download_count, description, is_verified)
+    INSERT INTO apps (id, name, package_id, category, truth_rating, download_count, description, developer, is_verified)
     VALUES
-      ('11111111-1111-1111-1111-111111111111', 'Secure Chat', 'com.chat.secure', 'social', 4.6, 20000, 'Encrypted messaging app', true),
-      ('22222222-2222-2222-2222-222222222222', 'Sketchy VPN', 'com.vpn.bad', 'security', 1.2, 5000, 'VPN with poor transparency', false);
+      ('11111111-1111-1111-1111-111111111111', 'Secure Chat', 'com.chat.secure', 'social', 4.6, 20000, 'Encrypted messaging app', 'Secure Labs', true),
+      ('22222222-2222-2222-2222-222222222222', 'Sketchy VPN', 'com.vpn.bad', 'security', 1.2, 5000, 'VPN with poor transparency', 'Unknown Corp', false);
   `);
 
   const { Pool } = db.adapters.createPg();
