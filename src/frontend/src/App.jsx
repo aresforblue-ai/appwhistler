@@ -2,10 +2,14 @@
 // Main React application for AppWhistler
 // Minimalist design with greys, blues, and whites + dark mode
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import {
+  fetchApps,
+  fetchFactChecks,
+  loginUser,
+  submitFactCheck as submitFactCheckRequest
+} from './services/api';
 
 const HERO_FEATURES = [
   'Realtime disinformation radar',
@@ -20,6 +24,7 @@ const DISCOVER_METRICS = [
 ];
 
 const FILTER_OPTIONS = ['All', 'Social', 'Productivity', 'Finance', 'Health', 'Civic'];
+const FACT_CHECK_CATEGORIES = ['General', 'Policy', 'Finance', 'Health', 'Civic', 'Security'];
 
 const DEFAULT_FACT_CHECKS = [
   {
@@ -56,62 +61,170 @@ const PROFILE_BADGES = [
  * Features: Dark mode, app search, fact-checking, personalized feed
  */
 function App() {
-  // State management
-  const [darkMode, setDarkMode] = useState(false);
-  const [user, setUser] = useState(null);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('appwhistler_darkmode') === 'true');
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('appwhistler_user');
+      return saved ? normalizeUser(JSON.parse(saved)) : null;
+    } catch (error) {
+      console.warn('Failed to parse stored user', error);
+      return null;
+    }
+  });
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('appwhistler_token'));
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [apps, setApps] = useState([]);
-  const [factChecks, setFactChecks] = useState([]);
-  const [activeTab, setActiveTab] = useState('discover'); // discover, factcheck, profile
+  const [activeTab, setActiveTab] = useState('discover');
   const [activeFilter, setActiveFilter] = useState('All');
 
-  // Load user and preferences from localStorage
-  useEffect(() => {
-    const savedUser = localStorage.getItem('appwhistler_user');
-    const savedDarkMode = localStorage.getItem('appwhistler_darkmode');
-    
-    if (savedUser) setUser(JSON.parse(savedUser));
-    if (savedDarkMode) setDarkMode(savedDarkMode === 'true');
-  }, []);
+  const [appQuery, setAppQuery] = useState({ search: undefined, category: undefined });
+  const [apps, setApps] = useState([]);
+  const [appsLoading, setAppsLoading] = useState(false);
+  const [appsError, setAppsError] = useState(null);
+  const [appsUpdatedAt, setAppsUpdatedAt] = useState(null);
 
-  // Apply dark mode class to body
+  const [factChecks, setFactChecks] = useState([]);
+  const [factChecksLoading, setFactChecksLoading] = useState(false);
+  const [factChecksError, setFactChecksError] = useState(null);
+  const [factCheckSubmit, setFactCheckSubmit] = useState({ loading: false, error: null, message: null });
+
+  const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+
   useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark');
-    } else {
-      document.body.classList.remove('dark');
-    }
+    document.body.classList.toggle('dark', darkMode);
     localStorage.setItem('appwhistler_darkmode', darkMode);
   }, [darkMode]);
 
-  // Fetch apps from backend
-  const searchApps = async (query) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/apps/trending?search=${query}`);
-      if (!response.ok) throw new Error('Failed to fetch');
-      const data = await response.json();
-      if (data.success) {
-        setApps(data.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch apps:', error);
-    }
-  };
-
-  // Handle search with debounce
   useEffect(() => {
+    if (user) {
+      localStorage.setItem('appwhistler_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('appwhistler_user');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (authToken) {
+      localStorage.setItem('appwhistler_token', authToken);
+    } else {
+      localStorage.removeItem('appwhistler_token');
+    }
+  }, [authToken]);
+
+  const loadApps = useCallback(async (params = {}) => {
+    setAppsLoading(true);
+    setAppsError(null);
+    try {
+      const { items } = await fetchApps(params);
+      setApps(items);
+      setAppsUpdatedAt(new Date());
+    } catch (error) {
+      console.error('Failed to load apps:', error);
+      setAppsError(error.message || 'Unable to load apps');
+    } finally {
+      setAppsLoading(false);
+    }
+  }, []);
+
+  const loadFactChecks = useCallback(async () => {
+    setFactChecksLoading(true);
+    setFactChecksError(null);
+    try {
+      const { items } = await fetchFactChecks({ limit: 12 });
+      setFactChecks(items);
+    } catch (error) {
+      console.error('Failed to load fact checks:', error);
+      setFactChecksError(error.message || 'Unable to load fact checks');
+    } finally {
+      setFactChecksLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const nextCategory = activeFilter === 'All' ? undefined : activeFilter;
+    setAppQuery(prev => {
+      if (prev.category === nextCategory) return prev;
+      return { ...prev, category: nextCategory };
+    });
+  }, [activeFilter]);
+
+  useEffect(() => {
+    if (searchQuery.length === 0) {
+      setAppQuery(prev => {
+        if (prev.search === undefined) return prev;
+        return { ...prev, search: undefined };
+      });
+      return;
+    }
+
+    if (searchQuery.length < 2) {
+      return;
+    }
+
+    const nextQuery = searchQuery;
     const timer = setTimeout(() => {
-      if (searchQuery.length >= 2) {
-        searchApps(searchQuery);
-      }
-    }, 500);
+      setAppQuery(prev => {
+        if (prev.search === nextQuery) return prev;
+        return { ...prev, search: nextQuery };
+      });
+    }, 400);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const filteredApps = activeFilter === 'All'
-    ? apps
-    : apps.filter(app => (app.category || '').toLowerCase().includes(activeFilter.toLowerCase()));
+  useEffect(() => {
+    loadApps(appQuery);
+  }, [appQuery, loadApps]);
+
+  useEffect(() => {
+    loadFactChecks();
+  }, [loadFactChecks]);
+
+  const handleManualRefresh = useCallback(() => {
+    loadApps(appQuery);
+  }, [appQuery, loadApps]);
+
+  const handleLogout = useCallback(() => {
+    setUser(null);
+    setAuthToken(null);
+  }, []);
+
+  const handleLogin = useCallback(async ({ email, password }) => {
+    const authResponse = await loginUser({ email, password });
+    const normalizedUser = normalizeUser(authResponse.user);
+    setUser(normalizedUser);
+    setAuthToken(authResponse.token);
+    setAuthModalOpen(false);
+  }, []);
+
+  const handleSubmitFactCheck = useCallback(async ({ claim, category, sourceUrl, context }) => {
+    if (!authToken) {
+      setAuthModalOpen(true);
+      throw new Error('Please sign in to submit a claim.');
+    }
+
+    setFactCheckSubmit({ loading: true, error: null, message: null });
+    try {
+      const payload = {
+        claim: claim.trim(),
+        category,
+        verdict: 'UNVERIFIED',
+        confidenceScore: 0,
+        sources: sourceUrl ? [{ label: 'User submission', url: sourceUrl.trim() }] : null,
+        explanation: context?.trim() || 'Community submission awaiting analyst review.'
+      };
+
+      const newFactCheck = await submitFactCheckRequest(payload, authToken);
+      setFactChecks(prev => [newFactCheck, ...prev].slice(0, 20));
+      setFactCheckSubmit({ loading: false, error: null, message: 'Claim dispatched for review.' });
+    } catch (error) {
+      setFactCheckSubmit({ loading: false, error: error.message || 'Failed to submit claim.', message: null });
+      throw error;
+    }
+  }, [authToken]);
+
+  const isAuthenticated = Boolean(authToken && user);
+  const factCheckCount = factChecks.length || DEFAULT_FACT_CHECKS.length;
 
   return (
     <div className={`relative min-h-screen overflow-hidden ${darkMode ? 'bg-slate-950' : 'bg-slate-50'} transition-colors duration-500`}>
@@ -122,59 +235,64 @@ function App() {
       </div>
 
       <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Header */}
-        <Header 
-          darkMode={darkMode} 
-          setDarkMode={setDarkMode} 
-          user={user}
-          setUser={setUser}
-        />
-
-        <HeroSection 
+        <Header
           darkMode={darkMode}
+          setDarkMode={setDarkMode}
           user={user}
-          factChecks={factChecks.length || DEFAULT_FACT_CHECKS.length}
+          onLogout={handleLogout}
+          onSignIn={() => setAuthModalOpen(true)}
         />
 
-        {/* Navigation Tabs */}
-        <Navigation 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
-          darkMode={darkMode}
-        />
+        <HeroSection darkMode={darkMode} user={user} factChecks={factCheckCount} />
 
-        {/* Main Content */}
+        <Navigation activeTab={activeTab} setActiveTab={setActiveTab} darkMode={darkMode} />
+
         <main className="container mx-auto px-4 py-10 w-full max-w-6xl flex-1">
           {activeTab === 'discover' && (
-            <DiscoverTab 
+            <DiscoverTab
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
-              apps={filteredApps}
-              fullApps={apps}
+              apps={apps}
               darkMode={darkMode}
               activeFilter={activeFilter}
               setActiveFilter={setActiveFilter}
+              loading={appsLoading}
+              error={appsError}
+              updatedAt={appsUpdatedAt}
+              onRefresh={handleManualRefresh}
             />
           )}
 
           {activeTab === 'factcheck' && (
-            <FactCheckTab 
+            <FactCheckTab
               factChecks={factChecks}
               darkMode={darkMode}
+              loading={factChecksLoading}
+              error={factChecksError}
+              onSubmitClaim={handleSubmitFactCheck}
+              submitting={factCheckSubmit.loading}
+              submitError={factCheckSubmit.error}
+              submitMessage={factCheckSubmit.message}
+              canSubmit={isAuthenticated}
+              onRequestAuth={() => setAuthModalOpen(true)}
             />
           )}
 
           {activeTab === 'profile' && (
-            <ProfileTab 
-              user={user}
-              darkMode={darkMode}
-            />
+            <ProfileTab user={user} darkMode={darkMode} />
           )}
         </main>
 
-        {/* Footer */}
         <Footer darkMode={darkMode} />
       </div>
+
+      {isAuthModalOpen && (
+        <AuthModal
+          darkMode={darkMode}
+          onClose={() => setAuthModalOpen(false)}
+          onLogin={handleLogin}
+        />
+      )}
     </div>
   );
 }
@@ -183,21 +301,18 @@ function App() {
  * Header Component
  * Logo, user info, dark mode toggle
  */
-function Header({ darkMode, setDarkMode, user, setUser }) {
-  const [showAuthModal, setShowAuthModal] = useState(false);
+function Header({ darkMode, setDarkMode, user, onLogout, onSignIn }) {
+  const userTruthScore = user?.truthScore ?? user?.truth_score ?? '—';
 
   return (
     <header className={`${darkMode ? 'bg-slate-950/70 border-white/10' : 'bg-white/70 border-slate-200'} backdrop-blur-xl border-b transition-colors`}>
       <div className="container mx-auto px-4 py-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between max-w-6xl">
-        {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 text-white font-bold flex items-center justify-center shadow-lg shadow-blue-500/30">
             AW
           </div>
           <div>
-            <h1 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-              AppWhistler
-            </h1>
+            <h1 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>AppWhistler</h1>
             <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
               Integrity intelligence for the app stores
             </p>
@@ -207,14 +322,11 @@ function Header({ darkMode, setDarkMode, user, setUser }) {
           </span>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => setDarkMode(!darkMode)}
             className={`group flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium border transition ${
-              darkMode
-                ? 'border-slate-700 text-slate-200 hover:border-blue-500'
-                : 'border-slate-200 text-slate-700 hover:border-blue-500'
+              darkMode ? 'border-slate-700 text-slate-200 hover:border-blue-500' : 'border-slate-200 text-slate-700 hover:border-blue-500'
             }`}
             aria-label="Toggle dark mode"
           >
@@ -228,13 +340,10 @@ function Header({ darkMode, setDarkMode, user, setUser }) {
             }`}>
               <div>
                 <p className={`text-sm font-semibold ${darkMode ? 'text-blue-200' : 'text-blue-800'}`}>{user.username}</p>
-                <p className={`text-xs ${darkMode ? 'text-blue-100' : 'text-blue-600'}`}>Truth Score {user.truthScore}</p>
+                <p className={`text-xs ${darkMode ? 'text-blue-100' : 'text-blue-600'}`}>Truth Score {userTruthScore}</p>
               </div>
               <button
-                onClick={() => {
-                  localStorage.removeItem('appwhistler_user');
-                  setUser(null);
-                }}
+                onClick={onLogout}
                 className={`text-xs font-semibold ${darkMode ? 'text-rose-300 hover:text-rose-200' : 'text-rose-500 hover:text-rose-600'}`}
               >
                 Logout
@@ -242,7 +351,7 @@ function Header({ darkMode, setDarkMode, user, setUser }) {
             </div>
           ) : (
             <button
-              onClick={() => setShowAuthModal(true)}
+              onClick={onSignIn}
               className="rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 px-6 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/30"
             >
               Sign In
@@ -250,15 +359,6 @@ function Header({ darkMode, setDarkMode, user, setUser }) {
           )}
         </div>
       </div>
-
-      {/* Auth Modal (simplified) */}
-      {showAuthModal && (
-        <AuthModal 
-          onClose={() => setShowAuthModal(false)} 
-          setUser={setUser}
-          darkMode={darkMode}
-        />
-      )}
     </header>
   );
 }
@@ -359,7 +459,7 @@ function HeroSection({ darkMode, user, factChecks }) {
             <div className={`${darkMode ? 'bg-gradient-to-br from-indigo-600/40 to-blue-500/30 text-white border-white/10' : 'bg-gradient-to-br from-indigo-100 to-blue-100 text-slate-900 border-blue-100/50'} rounded-2xl border p-5`}>
               <p className="text-sm font-semibold">Fact checks verified</p>
               <p className="mt-2 text-5xl font-bold">{factChecks}</p>
-              <p a className="text-sm opacity-80">Streaming to every client workspace</p>
+              <p className="text-sm opacity-80">Streaming to every client workspace</p>
               <div className="mt-4 flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center text-lg">⚡</div>
                 <div>
@@ -382,14 +482,16 @@ function DiscoverTab({
   searchQuery,
   setSearchQuery,
   apps,
-  fullApps,
   darkMode,
   activeFilter,
-  setActiveFilter
+  setActiveFilter,
+  loading,
+  error,
+  updatedAt,
+  onRefresh
 }) {
   const hasResults = apps.length > 0;
-  const benchmarks = fullApps.length ? fullApps : apps;
-  const updatedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const updatedLabel = updatedAt ? formatTimestamp(updatedAt) : '—';
 
   return (
     <div className="space-y-8">
@@ -407,60 +509,64 @@ function DiscoverTab({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by app, dev, or signal keyword..."
+              placeholder="Search by app, developer, or signal keyword..."
               className={`w-full rounded-2xl border px-12 py-3 text-sm font-medium ${
-                darkMode
-                  ? 'border-slate-800 bg-slate-900 text-white placeholder-slate-500'
-                  : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                darkMode ? 'border-slate-800 bg-slate-900 text-white placeholder-slate-500' : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'
               } focus:outline-none focus:ring-2 focus:ring-blue-500/60`}
             />
           </div>
-          <button className="rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30">
+          <button
+            onClick={onRefresh}
+            className="rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30"
+          >
             Pulse Search
           </button>
         </div>
-        <FilterPills 
-          options={FILTER_OPTIONS} 
-          active={activeFilter} 
-          onChange={setActiveFilter}
-          darkMode={darkMode}
-        />
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <FilterPills options={FILTER_OPTIONS} active={activeFilter} onChange={setActiveFilter} darkMode={darkMode} />
+          <span className={`text-xs font-medium ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            Updated {updatedLabel}
+          </span>
+          {loading && <span className="text-xs font-semibold text-blue-400 animate-pulse">Syncing telemetry…</span>}
+          {error && <span className="text-xs font-semibold text-rose-400">{error}</span>}
+        </div>
       </section>
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-          <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Trending integrity signals</p>
-          <h3 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-            {hasResults ? 'Precision-ranked apps' : 'Ready when you are'}
-          </h3>
+            <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Trending integrity signals</p>
+            <h3 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              {hasResults ? 'Precision-ranked apps' : 'Ready when you search'}
+            </h3>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {hasResults ? (
             apps.map((app, idx) => <AppCard key={app.id || app.name || idx} app={app} darkMode={darkMode} />)
           ) : (
-            <EmptyState darkMode={darkMode} query={searchQuery} />
+            <EmptyState darkMode={darkMode} query={searchQuery} loading={loading} />
           )}
         </div>
       </section>
 
-      {benchmarks.length > 0 && (
+      {hasResults && (
         <section className={`${darkMode ? 'bg-slate-950/60 border-white/5' : 'bg-white border-slate-200'} rounded-3xl border p-6`}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-sm text-blue-400">Anomalies board</p>
               <h4 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-                Radar feed (top {Math.min(benchmarks.length, 5)})
+                Radar feed (top {Math.min(apps.length, 5)})
               </h4>
             </div>
             <button className="text-sm font-semibold text-blue-400 hover:text-blue-300">Export CSV</button>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {benchmarks.slice(0, 5).map(app => (
-              <div key={`mini-${app.id || app.name}`} className={`${darkMode ? 'bg-slate-900/60' : 'bg-slate-50'} rounded-2xl p-4`}> 
+            {apps.slice(0, 5).map(app => (
+              <div key={`mini-${app.id || app.name}`} className={`${darkMode ? 'bg-slate-900/60' : 'bg-slate-50'} rounded-2xl p-4`}>
                 <p className="text-sm font-semibold truncate">{app.name}</p>
                 <p className="text-xs text-slate-400">{app.developer || 'Unknown dev'}</p>
-                <p className="mt-2 text-lg font-bold text-blue-400">{app.truth_rating?.toFixed(1) || '—'}</p>
+                <p className="mt-2 text-lg font-bold text-blue-400">{formatTruthScore(app.truth_rating)}</p>
                 <p className="text-xs text-slate-500">{(app.download_count || 0).toLocaleString()} installs</p>
               </div>
             ))}
@@ -475,9 +581,10 @@ function DiscoverTab({
  * App Card Component
  */
 function AppCard({ app, darkMode }) {
-  const trustScore = app.truth_rating?.toFixed(1) || '—';
+  const trustScore = formatTruthScore(app.truth_rating);
   const confidence = Math.min(100, Math.round(((app.truth_rating || 0) / 5) * 100));
   const category = (app.category || 'General').replace(/\b\w/g, char => char.toUpperCase());
+  const lastAudit = formatRelativeTime(app.updated_at);
 
   return (
     <div className="group relative rounded-3xl bg-gradient-to-br from-slate-200/40 via-transparent to-blue-500/40 p-[1px] shadow-lg shadow-slate-900/10">
@@ -523,7 +630,7 @@ function AppCard({ app, darkMode }) {
           </div>
           <div className={`${darkMode ? 'bg-slate-900/60' : 'bg-slate-50'} rounded-2xl p-3`}>
             <p className="text-xs text-slate-400">Last audit</p>
-            <p className="text-lg font-semibold">{app.last_audit || '24h ago'}</p>
+            <p className="text-lg font-semibold">{lastAudit}</p>
           </div>
         </div>
 
@@ -589,12 +696,46 @@ function EmptyState({ darkMode, query }) {
 /**
  * Fact Check Tab - NewsTruth Module
  */
-function FactCheckTab({ factChecks, darkMode }) {
-  const [newClaim, setNewClaim] = useState('');
+function FactCheckTab({
+  factChecks,
+  darkMode,
+  loading,
+  error,
+  onSubmitClaim,
+  submitting,
+  submitError,
+  submitMessage,
+  canSubmit,
+  onRequestAuth
+}) {
+  const [claim, setClaim] = useState('');
+  const [category, setCategory] = useState(FACT_CHECK_CATEGORIES[0]);
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [context, setContext] = useState('');
+  const [localError, setLocalError] = useState(null);
+
   const feed = factChecks.length ? factChecks : DEFAULT_FACT_CHECKS;
 
-  const submitClaim = async () => {
-    console.log('Submitting claim:', newClaim);
+  const handleSubmit = async () => {
+    if (!claim.trim()) {
+      setLocalError('Please describe the claim you want verified.');
+      return;
+    }
+    if (!canSubmit) {
+      setLocalError('Sign in to dispatch claims.');
+      onRequestAuth();
+      return;
+    }
+
+    try {
+      await onSubmitClaim({ claim, category, sourceUrl, context });
+      setClaim('');
+      setSourceUrl('');
+      setContext('');
+      setLocalError(null);
+    } catch (error) {
+      setLocalError(error.message || 'Submission failed.');
+    }
   };
 
   return (
@@ -603,31 +744,90 @@ function FactCheckTab({ factChecks, darkMode }) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-blue-400">Submit a claim</p>
-            <h2 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>Dispatch to NewsTruth desk</h2>
+            <h2 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              Dispatch to NewsTruth desk
+            </h2>
           </div>
           <span className="rounded-full border border-emerald-400/50 px-3 py-1 text-xs font-semibold text-emerald-300">Avg turnaround 14m</span>
         </div>
         <textarea
-          value={newClaim}
-          onChange={(e) => setNewClaim(e.target.value)}
+          value={claim}
+          onChange={(e) => setClaim(e.target.value)}
           placeholder="e.g. 'GreenScore badges are government certified'"
           className={`mt-6 w-full rounded-3xl border px-5 py-4 text-sm ${
             darkMode ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-slate-50 text-slate-900'
           } focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
           rows={4}
         />
-        <div className="mt-4 flex items-center justify-between">
-          <p className={`text-xs ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>Use clear, attributable language for faster routing.</p>
-          <button 
-            onClick={submitClaim}
-            className="rounded-2xl bg-gradient-to-r from-emerald-400 to-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-400/30"
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div>
+            <label className={`text-xs uppercase tracking-widest ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className={`mt-2 w-full rounded-2xl border px-4 py-3 text-sm ${
+                darkMode ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-900'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
+            >
+              {FACT_CHECK_CATEGORIES.map(option => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={`text-xs uppercase tracking-widest ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+              Source URL (optional)
+            </label>
+            <input
+              type="url"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="https://..."
+              className={`mt-2 w-full rounded-2xl border px-4 py-3 text-sm ${
+                darkMode ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-900'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
+            />
+          </div>
+        </div>
+        <textarea
+          value={context}
+          onChange={(e) => setContext(e.target.value)}
+          placeholder="Context or evidence for faster routing"
+          className={`mt-4 w-full rounded-2xl border px-4 py-3 text-sm ${
+            darkMode ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-900'
+          } focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
+          rows={3}
+        />
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1 text-xs">
+            {localError && <p className="text-rose-400">{localError}</p>}
+            {submitError && <p className="text-rose-400">{submitError}</p>}
+            {submitMessage && <p className="text-emerald-400">{submitMessage}</p>}
+            {!canSubmit && <p className={darkMode ? 'text-slate-500' : 'text-slate-500'}>Sign in to fast-track analyst review.</p>}
+          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className={`rounded-2xl bg-gradient-to-r from-emerald-400 to-blue-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-400/30 ${
+              submitting ? 'opacity-70 cursor-not-allowed' : ''
+            }`}
           >
-            Verify Claim
+            {submitting ? 'Dispatching...' : 'Verify Claim'}
           </button>
         </div>
       </div>
 
       <div className="space-y-4">
+        {loading && (
+          <div className={`${darkMode ? 'bg-slate-950/70 border-white/10' : 'bg-white border-slate-200'} rounded-2xl border p-4 text-sm text-blue-400 animate-pulse`}>
+            Syncing analyst feed…
+          </div>
+        )}
+        {error && (
+          <div className={`${darkMode ? 'bg-rose-500/10 border-rose-500/30 text-rose-200' : 'bg-rose-50 border-rose-200 text-rose-500'} rounded-2xl border p-4 text-sm`}>
+            {error}
+          </div>
+        )}
         {feed.map((fc, index) => (
           <FactCheckCard key={fc.id || index} factCheck={fc} darkMode={darkMode} index={index} />
         ))}
@@ -647,6 +847,10 @@ function FactCheckCard({ factCheck, darkMode, index }) {
     UNVERIFIED: 'from-slate-400 to-slate-500 text-white'
   };
 
+  const verdict = (factCheck.verdict || 'UNVERIFIED').toUpperCase();
+  const sourceLabel = extractPrimarySource(factCheck);
+  const updatedAgo = formatRelativeTime(factCheck.updated_at || factCheck.updatedAt);
+
   return (
     <div className="relative pl-8">
       <div className="absolute left-3 top-0 h-full w-px bg-gradient-to-b from-blue-400/60 via-transparent to-transparent" />
@@ -657,14 +861,16 @@ function FactCheckCard({ factCheck, darkMode, index }) {
             <p className="text-xs text-slate-400">Case #{index + 1}</p>
             <h3 className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{factCheck.claim}</h3>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold bg-gradient-to-r ${verdictColors[factCheck.verdict] || verdictColors.UNVERIFIED}`}>
-            {factCheck.verdict || 'UNVERIFIED'}
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold bg-gradient-to-r ${verdictColors[verdict] || verdictColors.UNVERIFIED}`}>
+            {verdict}
           </span>
         </div>
-        <p className={`mt-3 text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>{factCheck.explanation}</p>
-        <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
-          <span>Source · {factCheck.source || 'Undisclosed'}</span>
-          <span>Updated {factCheck.updated_at || 'moments ago'}</span>
+        <p className={`mt-3 text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+          {factCheck.explanation || 'Awaiting expanded analyst notes.'}
+        </p>
+        <div className="mt-4 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-3">
+          <span>Source · {sourceLabel}</span>
+          <span>{updatedAgo}</span>
         </div>
       </div>
     </div>
@@ -686,6 +892,8 @@ function ProfileTab({ user, darkMode }) {
     );
   }
 
+  const truthScore = user.truthScore ?? user.truth_score ?? 0;
+
   return (
     <div className="space-y-6">
       <section className={`${darkMode ? 'bg-slate-950/80 border-white/10' : 'bg-white border-slate-200'} rounded-3xl border p-6`}>
@@ -693,9 +901,11 @@ function ProfileTab({ user, darkMode }) {
           <div>
             <p className="text-sm text-blue-400">Analyst Profile</p>
             <h2 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{user.username}</h2>
-            <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Truth Score {user.truthScore}</p>
+            <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Truth Score {truthScore}</p>
           </div>
-          <button className="rounded-2xl border border-blue-500/40 px-4 py-2 text-sm font-semibold text-blue-300">Manage alerts</button>
+          <button className="rounded-2xl border border-blue-500/40 px-4 py-2 text-sm font-semibold text-blue-300">
+            Manage alerts
+          </button>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <ProfileStatCard darkMode={darkMode} label="Signals triaged" value="382" hint="last 30d" />
@@ -739,17 +949,29 @@ function ProfileStatCard({ label, value, hint, darkMode }) {
   );
 }
 /**
- * Simple Auth Modal (placeholder)
+ * Authentication Modal
  */
-function AuthModal({ onClose, setUser, darkMode }) {
+function AuthModal({ darkMode, onClose, onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleLogin = async () => {
-    // Simulate login
-    setUser({ username: 'demo_user', truthScore: 150 });
-    localStorage.setItem('appwhistler_user', JSON.stringify({ username: 'demo_user', truthScore: 150 }));
-    onClose();
+    if (!email || !password) {
+      setError('Enter your credentials to continue.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      await onLogin({ email, password });
+    } catch (err) {
+      setError(err.message || 'Login failed.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -776,12 +998,18 @@ function AuthModal({ onClose, setUser, darkMode }) {
             darkMode ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-slate-50 text-slate-900'
           } focus:outline-none focus:ring-2 focus:ring-blue-500/60`}
         />
-        <div className="mt-6 flex gap-3">
+        <div className="mt-4 text-sm text-rose-400 h-5">
+          {error && <span>{error}</span>}
+        </div>
+        <div className="mt-2 flex gap-3">
           <button
             onClick={handleLogin}
-            className="flex-1 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-3 text-sm font-semibold text-white"
+            disabled={submitting}
+            className={`flex-1 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 ${
+              submitting ? 'opacity-70 cursor-not-allowed' : ''
+            }`}
           >
-            Login
+            {submitting ? 'Signing in…' : 'Login'}
           </button>
           <button
             onClick={onClose}
@@ -819,5 +1047,111 @@ function Footer({ darkMode }) {
     </footer>
   );
 }
+
+function normalizeUser(user) {
+  if (!user) return null;
+  const truthScore = typeof user.truthScore === 'number'
+    ? user.truthScore
+    : Number(user.truth_score ?? 0);
+
+  return {
+    ...user,
+    truthScore: Number.isFinite(truthScore) ? truthScore : 0,
+    truth_score: Number.isFinite(truthScore) ? truthScore : 0
+  };
+}
+
+function formatTimestamp(value) {
+  const date = parseDate(value);
+  if (!date) return '—';
+  return new Intl.DateTimeFormat('en', {
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function formatRelativeTime(value) {
+  const date = parseDate(value);
+  if (!date) return 'Just now';
+  let elapsed = (date.getTime() - Date.now()) / 1000;
+
+  for (const { amount, unit } of RELATIVE_TIME_DIVISIONS) {
+    if (Math.abs(elapsed) < amount) {
+      return new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+        .format(Math.round(elapsed), unit);
+    }
+    elapsed /= amount;
+  }
+
+  return 'Just now';
+}
+
+function formatTruthScore(score) {
+  const value = clamp(Number(score), 0, 5);
+  return Number.isFinite(value) ? value.toFixed(1) : '—';
+}
+
+function extractPrimarySource(factCheck) {
+  if (!factCheck) return 'AppWhistler Labs';
+  const sources = factCheck.sources;
+
+  if (Array.isArray(sources) && sources.length > 0) {
+    const first = sources[0];
+    if (typeof first === 'string') {
+      return simplifySourceLabel(first);
+    }
+    if (first?.label) {
+      return first.label;
+    }
+    if (first?.url) {
+      return simplifySourceLabel(first.url);
+    }
+  }
+
+  if (sources && typeof sources === 'object') {
+    if (sources.label) {
+      return sources.label;
+    }
+    if (sources.url) {
+      return simplifySourceLabel(sources.url);
+    }
+  }
+
+  if (factCheck.source) {
+    return factCheck.source;
+  }
+
+  return factCheck.category ? `${factCheck.category} desk` : 'AppWhistler Labs';
+}
+
+function simplifySourceLabel(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch (_error) {
+    return url?.replace(/^https?:\/\//, '') || 'AppWhistler Labs';
+  }
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+const RELATIVE_TIME_DIVISIONS = [
+  { amount: 60, unit: 'second' },
+  { amount: 60, unit: 'minute' },
+  { amount: 24, unit: 'hour' },
+  { amount: 7, unit: 'day' },
+  { amount: 4.34524, unit: 'week' },
+  { amount: 12, unit: 'month' },
+  { amount: Number.POSITIVE_INFINITY, unit: 'year' }
+];
 
 export default App;

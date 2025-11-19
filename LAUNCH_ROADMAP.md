@@ -16,7 +16,7 @@
 - [x] **Account lockout** - Add failed login attempt tracking (prevent brute force)
 
 ### 2. Core Functionality Gaps
-- [ ] **Frontend implementation** - Build out React components (currently stub file only)
+- [x] **Frontend implementation** - Vite + Tailwind React client wired to GraphQL apps/fact-checks (Nov 2025)
 - [ ] **GraphQL subscriptions** - Implement real-time updates beyond Socket.io broadcast
 - [ ] **File uploads** - Add avatar, app icon upload with S3/CloudFlare R2
 - [ ] **Email service** - Integrate SendGrid/Postmark for transactional emails (verification, notifications)
