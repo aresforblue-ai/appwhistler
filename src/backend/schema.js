@@ -209,6 +209,8 @@ const typeDefs = gql`
     login(input: LoginInput!): AuthPayload!
     refreshToken(token: String!): AuthPayload!
     logout: Boolean!
+    requestPasswordReset(email: String!): Boolean!
+    resetPassword(token: String!, newPassword: String!): Boolean!
 
     # Apps
     addApp(input: AppInput!): App!

@@ -17,3 +17,5 @@ Made with ❤️ in Beaumont, Texas by Tyler Hughes (@AppWhistler) — November 
 - `POST /api/v1/privacy/delete` — anonymizes the requesting account, clears linked content, and logs the request for auditing.
 - `GET /api/v1/privacy/policy` — serves the latest markdown privacy policy located at `docs/privacy-policy.md`.
 - `npm run audit:sql` — static analysis script that blocks unsafe SQL string interpolation.
+- GraphQL password reset helpers: `requestPasswordReset(email)` + `resetPassword(token, newPassword)` with configurable TTL (`PASSWORD_RESET_TOKEN_TTL_MIN`) and base URL (`PASSWORD_RESET_BASE_URL`).
+- Account lockout protection defaults: 5 attempts / 15 minutes, override via `LOGIN_MAX_FAILED_ATTEMPTS` & `LOGIN_LOCKOUT_MINUTES`.

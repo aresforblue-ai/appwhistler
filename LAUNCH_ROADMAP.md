@@ -12,8 +12,8 @@
 - [x] **SQL injection audit** - Verify all queries use parameterization (currently done, needs formal audit)
 - [x] **GDPR/CCPA compliance** - Add data export, deletion, privacy policy endpoints
 - [x] **Security headers audit** - Review helmet.js config for production CSP
-- [ ] **Password reset flow** - Implement email-based password recovery
-- [ ] **Account lockout** - Add failed login attempt tracking (prevent brute force)
+- [x] **Password reset flow** - Implement email-based password recovery
+- [x] **Account lockout** - Add failed login attempt tracking (prevent brute force)
 
 ### 2. Core Functionality Gaps
 - [ ] **Frontend implementation** - Build out React components (currently stub file only)

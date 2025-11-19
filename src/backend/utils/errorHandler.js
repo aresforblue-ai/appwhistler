@@ -15,6 +15,7 @@ const ERROR_CODES = {
   UNAUTHORIZED: { statusCode: 403, message: 'Insufficient permissions' },
   INVALID_TOKEN: { statusCode: 401, message: 'Invalid or expired token' },
   TOKEN_EXPIRED: { statusCode: 401, message: 'Token has expired' },
+  ACCOUNT_LOCKED: { statusCode: 423, message: 'Account temporarily locked' },
   
   // Input/Validation errors (4xx)
   BAD_USER_INPUT: { statusCode: 400, message: 'Invalid input provided' },

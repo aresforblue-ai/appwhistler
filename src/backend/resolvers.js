@@ -2,6 +2,7 @@
 // GraphQL resolvers - business logic for all operations
 
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { GraphQLError } = require('graphql');
 const { 
@@ -11,14 +12,18 @@ const {
 const { 
   createGraphQLError, handleValidationErrors, safeDatabaseOperation 
 } = require('./utils/errorHandler');
+const { sendPasswordResetEmail } = require('./utils/email');
 const {
   sanitizePlainText,
   sanitizeRichText,
   sanitizeJson
 } = require('./utils/sanitizer');
-const { requireSecret } = require('../config/secrets');
+const { requireSecret, getNumber } = require('../config/secrets');
 
 const JWT_SECRET = requireSecret('JWT_SECRET');
+const PASSWORD_RESET_TOKEN_TTL_MIN = getNumber('PASSWORD_RESET_TOKEN_TTL_MIN', 30);
+const MAX_FAILED_ATTEMPTS = getNumber('LOGIN_MAX_FAILED_ATTEMPTS', 5);
+const LOCKOUT_MINUTES = getNumber('LOGIN_LOCKOUT_MINUTES', 15);
 
 // Helper: Generate JWT token
 function generateToken(userId, expiresIn = '7d') {
@@ -40,6 +45,10 @@ function verifyToken(token) {
   } catch (error) {
     throw createGraphQLError('Invalid or expired token', 'INVALID_TOKEN');
   }
+}
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 // Helper: Require authentication
@@ -315,15 +324,49 @@ const resolvers = {
 
       const user = result.rows[0];
 
+      if (user.lockout_until && new Date(user.lockout_until) > new Date()) {
+        const minutesLeft = Math.ceil((new Date(user.lockout_until) - new Date()) / 60000);
+        throw createGraphQLError(
+          `Account locked due to repeated failures. Try again in ${minutesLeft} minute(s).`,
+          'ACCOUNT_LOCKED'
+        );
+      }
+
       // Verify password
       const valid = await bcrypt.compare(password, user.password_hash);
       if (!valid) {
+        const failedAttempts = (user.failed_login_attempts || 0) + 1;
+        let lockoutUntil = null;
+        let attemptsToPersist = failedAttempts;
+        if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
+          lockoutUntil = new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000);
+          attemptsToPersist = 0;
+        }
+
+        await context.pool.query(
+          `UPDATE users
+           SET failed_login_attempts = $1,
+               last_failed_login = CURRENT_TIMESTAMP,
+               lockout_until = $2
+           WHERE id = $3`,
+          [attemptsToPersist, lockoutUntil, user.id]
+        );
+
+        if (lockoutUntil) {
+          throw createGraphQLError('Account locked after too many attempts. Please try again later.', 'ACCOUNT_LOCKED');
+        }
+
         throw createGraphQLError('Invalid email or password', 'UNAUTHENTICATED');
       }
 
       // Update last login
       await context.pool.query(
-        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+        `UPDATE users
+         SET last_login = CURRENT_TIMESTAMP,
+             failed_login_attempts = 0,
+             lockout_until = NULL,
+             last_failed_login = NULL
+         WHERE id = $1`,
         [user.id]
       );
 
@@ -333,6 +376,96 @@ const resolvers = {
       // Return user without password hash
       const { password_hash, ...userSafe } = user;
       return { token, refreshToken, user: userSafe };
+    },
+
+    requestPasswordReset: async (_, { email }, context) => {
+      const normalizedEmail = sanitizePlainText(email).toLowerCase();
+      if (!normalizedEmail) {
+        return true; // avoid enumeration
+      }
+
+      const result = await context.pool.query(
+        'SELECT id, email FROM users WHERE email = $1',
+        [normalizedEmail]
+      );
+
+      if (result.rows.length === 0) {
+        return true;
+      }
+
+      const user = result.rows[0];
+      const token = crypto.randomBytes(48).toString('hex');
+      const tokenHash = hashToken(token);
+      const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_TTL_MIN * 60 * 1000);
+
+      await context.pool.query(
+        `UPDATE password_reset_requests
+         SET consumed_at = NOW()
+         WHERE user_id = $1 AND consumed_at IS NULL`,
+        [user.id]
+      );
+
+      await context.pool.query(
+        `INSERT INTO password_reset_requests (user_id, token_hash, expires_at, requested_ip, user_agent)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          user.id,
+          tokenHash,
+          expiresAt,
+          context.req.ip || null,
+          context.req.headers['user-agent'] || null
+        ]
+      );
+
+      await sendPasswordResetEmail(user.email, token);
+
+      return true;
+    },
+
+    resetPassword: async (_, { token, newPassword }, context) => {
+      if (!token || typeof token !== 'string') {
+        throw createGraphQLError('Reset token is required', 'BAD_USER_INPUT');
+      }
+
+      const passwordValidation = validatePassword(newPassword);
+      if (!passwordValidation.valid) {
+        throw createGraphQLError(passwordValidation.message, 'INVALID_PASSWORD');
+      }
+
+      const tokenHash = hashToken(token);
+      const resetResult = await context.pool.query(
+        `SELECT * FROM password_reset_requests
+         WHERE token_hash = $1
+           AND consumed_at IS NULL
+           AND expires_at > NOW()
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [tokenHash]
+      );
+
+      if (resetResult.rows.length === 0) {
+        throw createGraphQLError('Invalid or expired reset token', 'INVALID_TOKEN');
+      }
+
+      const resetRequest = resetResult.rows[0];
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+
+      await context.pool.query(
+        `UPDATE users
+         SET password_hash = $1,
+             failed_login_attempts = 0,
+             lockout_until = NULL,
+             last_failed_login = NULL
+         WHERE id = $2`,
+        [passwordHash, resetRequest.user_id]
+      );
+
+      await context.pool.query(
+        'UPDATE password_reset_requests SET consumed_at = NOW() WHERE id = $1',
+        [resetRequest.id]
+      );
+
+      return true;
     },
 
     // Submit fact check
