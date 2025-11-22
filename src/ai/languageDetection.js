@@ -183,14 +183,28 @@ class LanguageService {
    * @private
    */
   _detectLanguageHeuristic(text) {
+    // Constants for heuristic thresholds
+    const MIN_WORD_MATCHES = 2;
+    const MIN_SCORE_THRESHOLD = 0.2;
+
     // First check for non-Latin scripts (high confidence indicators)
+    // Check Japanese-specific characters (Hiragana/Katakana) before CJK to avoid overlap
+    const japaneseMatch = text.match(/[\u3040-\u309f\u30a0-\u30ff]/g);
+    if (japaneseMatch && japaneseMatch.length > 0) {
+      return {
+        language: 'ja',
+        confidence: 0.95,
+        name: this.supportedLanguages.ja,
+        method: 'script-detection'
+      };
+    }
+
     const scriptPatterns = {
-      zh: /[\u4e00-\u9fff]/g,
-      ja: /[\u3040-\u309f\u30a0-\u30ff]/g,
       ar: /[\u0600-\u06ff]/g,
       ru: /[\u0400-\u04ff]/g,
       ko: /[\uac00-\ud7af]/g,
-      hi: /[\u0900-\u097f]/g
+      hi: /[\u0900-\u097f]/g,
+      zh: /[\u4e00-\u9fff]/g  // CJK characters - checked last due to overlap with Japanese
     };
 
     for (const [lang, pattern] of Object.entries(scriptPatterns)) {
@@ -241,7 +255,7 @@ class LanguageService {
 
     for (const [lang, pattern] of Object.entries(wordPatterns)) {
       const matches = text.match(pattern);
-      if (matches && matches.length > 1) { // Require at least 2 matches
+      if (matches && matches.length > MIN_WORD_MATCHES) {
         const matchCount = matches.length;
         const score = matchCount / wordCount;
         
@@ -258,7 +272,7 @@ class LanguageService {
     }
 
     // Return best match if score is significant, otherwise default to English
-    if (bestMatch && highestScore > 0.2) {
+    if (bestMatch && highestScore > MIN_SCORE_THRESHOLD) {
       return bestMatch;
     }
 
