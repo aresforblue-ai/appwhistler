@@ -105,7 +105,7 @@ describe('Video Verification', () => {
       if (metadata.frameRate < 24) suspicionScore += 0.2;
       if (metadata.width < 640) suspicionScore += 0.1;
 
-      expect(suspicionScore).toBe(0.3);
+      expect(suspicionScore).toBeCloseTo(0.3);
     });
 
     test('should cap deepfake score at 1.0', () => {
@@ -124,7 +124,7 @@ describe('Video Verification', () => {
       ];
 
       for (const pattern of patterns) {
-        const match = pattern.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        const match = pattern.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
         expect(match[1]).toBe(pattern.expectedId);
       }
     });

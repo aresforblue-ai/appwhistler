@@ -183,50 +183,85 @@ class LanguageService {
    * @private
    */
   _detectLanguageHeuristic(text) {
-    const patterns = {
-      // Spanish: common words and diacritics
-      es: /\b(el|la|los|las|de|que|es|un|una|por|con|no|se|para)\b|[áéíóúñ]/i,
-      // French: common words and diacritics
-      fr: /\b(le|la|les|de|un|une|et|est|pour|dans|ce|qui|ne|pas)\b|[àâçéèêëîïôùûü]/i,
-      // German: common words and characters
-      de: /\b(der|die|das|und|in|von|zu|den|mit|ist|des|dem)\b|[äöüß]/i,
-      // Chinese: CJK characters
-      zh: /[\u4e00-\u9fff]/,
-      // Japanese: Hiragana, Katakana, Kanji
-      ja: /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]/,
-      // Arabic: Arabic script
-      ar: /[\u0600-\u06ff]/,
-      // Russian: Cyrillic script
-      ru: /[\u0400-\u04ff]/,
-      // Korean: Hangul
-      ko: /[\uac00-\ud7af]/,
-      // Portuguese: common words
-      pt: /\b(o|a|os|as|de|que|do|da|em|um|uma|para|com|não|por)\b|[ãõç]/i,
-      // Hindi: Devanagari script
-      hi: /[\u0900-\u097f]/,
-      // Italian: common words
-      it: /\b(il|lo|la|i|gli|le|di|da|in|con|su|per|tra|fra)\b|[àèéìòù]/i
+    // First check for non-Latin scripts (high confidence indicators)
+    const scriptPatterns = {
+      zh: /[\u4e00-\u9fff]/g,
+      ja: /[\u3040-\u309f\u30a0-\u30ff]/g,
+      ar: /[\u0600-\u06ff]/g,
+      ru: /[\u0400-\u04ff]/g,
+      ko: /[\uac00-\ud7af]/g,
+      hi: /[\u0900-\u097f]/g
     };
 
-    // Test each pattern
-    for (const [lang, pattern] of Object.entries(patterns)) {
+    for (const [lang, pattern] of Object.entries(scriptPatterns)) {
       const matches = text.match(pattern);
       if (matches && matches.length > 0) {
-        // Calculate confidence based on match frequency
-        const matchCount = matches.length;
-        const wordCount = text.split(/\s+/).length;
-        const confidence = Math.min(matchCount / wordCount * 2, 0.9);
-        
         return {
           language: lang,
-          confidence: confidence,
+          confidence: 0.95,
           name: this.supportedLanguages[lang] || lang,
-          method: 'heuristic'
+          method: 'script-detection'
         };
       }
     }
 
-    // Default to English if no matches
+    // For Latin scripts, check for language-specific diacritics first
+    const diacriticPatterns = {
+      es: /[áéíóúñ]/gi,
+      fr: /[àâçéèêëîïôùûü]/gi,
+      de: /[äöüß]/gi,
+      pt: /[ãõç]/gi,
+      it: /[àèéìòù]/gi
+    };
+
+    for (const [lang, pattern] of Object.entries(diacriticPatterns)) {
+      const matches = text.match(pattern);
+      if (matches && matches.length > 0) {
+        return {
+          language: lang,
+          confidence: 0.85,
+          name: this.supportedLanguages[lang] || lang,
+          method: 'diacritic-detection'
+        };
+      }
+    }
+
+    // Finally, check common words (but require higher threshold due to ambiguity)
+    const wordPatterns = {
+      es: /\b(el|la|los|las|que|un|una|por|con|no|se|para|está|son)\b/gi,
+      fr: /\b(le|les|un|une|et|pour|dans|ce|qui|ne|pas|sont)\b/gi,
+      de: /\b(der|die|das|und|von|zu|den|mit|ist|des|dem|auch)\b/gi,
+      pt: /\b(os|as|que|do|da|em|um|uma|para|com|por|não|são)\b/gi,
+      it: /\b(il|lo|gli|le|di|con|su|per|tra|fra|sono|della)\b/gi
+    };
+
+    let bestMatch = null;
+    let highestScore = 0;
+    const wordCount = text.split(/\s+/).length;
+
+    for (const [lang, pattern] of Object.entries(wordPatterns)) {
+      const matches = text.match(pattern);
+      if (matches && matches.length > 1) { // Require at least 2 matches
+        const matchCount = matches.length;
+        const score = matchCount / wordCount;
+        
+        if (score > highestScore) {
+          highestScore = score;
+          bestMatch = {
+            language: lang,
+            confidence: Math.min(score * 2, 0.75),
+            name: this.supportedLanguages[lang] || lang,
+            method: 'word-pattern'
+          };
+        }
+      }
+    }
+
+    // Return best match if score is significant, otherwise default to English
+    if (bestMatch && highestScore > 0.2) {
+      return bestMatch;
+    }
+
     return {
       language: 'en',
       confidence: 0.5,
