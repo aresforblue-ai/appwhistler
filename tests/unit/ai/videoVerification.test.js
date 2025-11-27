@@ -1,6 +1,8 @@
 // tests/unit/ai/videoVerification.test.js
 // Tests for video verification system
 
+const { extractYouTubeVideoId } = require('../../../src/ai/videoVerification');
+
 describe('Video Verification', () => {
   describe('Video verification workflow', () => {
     test('should return verification object structure', () => {
@@ -117,23 +119,6 @@ describe('Video Verification', () => {
 
   describe('YouTube metadata extraction', () => {
     test('should extract YouTube video ID from URL', () => {
-      // Test function that mimics the implementation
-      function extractYouTubeVideoId(url) {
-        const patterns = [
-          /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
-          /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
-          /youtube\.com\/v\/([a-zA-Z0-9_-]{11})/
-        ];
-
-        for (const pattern of patterns) {
-          const match = url.match(pattern);
-          if (match) {
-            return match[1];
-          }
-        }
-        return null;
-      }
-
       const testCases = [
         { url: 'https://youtube.com/watch?v=dQw4w9WgXcQ', expectedId: 'dQw4w9WgXcQ' },
         { url: 'https://youtu.be/dQw4w9WgXcQ', expectedId: 'dQw4w9WgXcQ' },

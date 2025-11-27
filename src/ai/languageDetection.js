@@ -179,13 +179,28 @@ class LanguageService {
   }
 
   /**
+   * Common English words for heuristic detection
+   * These words are distinctive for English and rarely appear in other languages
+   * @private
+   */
+  static ENGLISH_WORDS = [
+    'the', 'this', 'is', 'are', 'was', 'were', 'been', 'being', 'have', 'has', 'had',
+    'do', 'does', 'did', 'will', 'would', 'could', 'should', 'might', 'must', 'shall',
+    'can', 'may', 'a', 'an', 'and', 'but', 'or', 'not', 'be', 'to', 'of', 'for', 'with',
+    'that', 'it', 'you', 'he', 'she', 'they', 'we', 'I', 'my', 'your', 'his', 'her',
+    'their', 'our', 'its', 'what', 'which', 'who', 'whom', 'whose', 'where', 'when',
+    'why', 'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other',
+    'some', 'such', 'no', 'nor', 'too', 'very', 'just', 'also', 'only'
+  ];
+
+  /**
    * Simple heuristic-based language detection (fallback)
    * @private
    */
   _detectLanguageHeuristic(text) {
     // Check for English first using common English words
     // These words are very distinctive for English and unlikely to appear in other languages
-    const englishPattern = /\b(the|this|is|are|was|were|been|being|have|has|had|do|does|did|will|would|could|should|might|must|shall|can|may|a|an|and|but|or|not|be|to|of|for|with|that|it|you|he|she|they|we|I|my|your|his|her|their|our|its|what|which|who|whom|whose|where|when|why|how|all|each|every|both|few|more|most|other|some|such|no|nor|too|very|just|also|only)\b/gi;
+    const englishPattern = new RegExp('\\b(' + LanguageService.ENGLISH_WORDS.join('|') + ')\\b', 'gi');
     const englishMatches = text.match(englishPattern);
     if (englishMatches && englishMatches.length >= 2) {
       const wordCount = text.split(/\s+/).length;

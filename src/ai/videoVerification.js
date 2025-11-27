@@ -440,5 +440,6 @@ module.exports = {
   VideoVerifier,
   videoVerifier,
   verifyVideo: (url) => videoVerifier.verifyVideo(url),
-  analyzeClaimInVideo: (url, claim) => videoVerifier.analyzeClaimInVideo(url, claim)
+  analyzeClaimInVideo: (url, claim) => videoVerifier.analyzeClaimInVideo(url, claim),
+  extractYouTubeVideoId: (url) => videoVerifier.extractYouTubeVideoId(url)
 };
