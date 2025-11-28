@@ -2,7 +2,6 @@
 // Tests for video verification system
 
 const { extractYouTubeVideoId } = require('../../../src/ai/videoVerification');
-
 describe('Video Verification', () => {
   describe('Video verification workflow', () => {
     test('should return verification object structure', () => {
