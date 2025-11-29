@@ -21,7 +21,10 @@
     "migrate:down": "node-pg-migrate down -c database/migration.config.cjs",
     "migration:new": "node scripts/run-migration.js create",
     "docs:graphql": "node scripts/generate-graphql-schema.js",
-    "docs:rest": "node scripts/generate-rest-spec.js"
+    "docs:rest": "node scripts/generate-rest-spec.js",
+    "seed:apps": "node scripts/seed-apps.js",
+    "seed:apps:update": "node scripts/seed-apps.js --update",
+    "seed:apps:fresh": "node scripts/seed-apps.js --clear"
   },
   "keywords": [
     "truth-tech",
