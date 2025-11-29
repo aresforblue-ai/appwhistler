@@ -1,6 +1,7 @@
 // tests/unit/ai/videoVerification.test.js
 // Tests for video verification system
 
+const { extractYouTubeVideoId } = require('../../../src/ai/videoVerification');
 describe('Video Verification', () => {
   describe('Video verification workflow', () => {
     test('should return verification object structure', () => {
@@ -105,7 +106,7 @@ describe('Video Verification', () => {
       if (metadata.frameRate < 24) suspicionScore += 0.2;
       if (metadata.width < 640) suspicionScore += 0.1;
 
-      expect(suspicionScore).toBe(0.3);
+      expect(suspicionScore).toBeCloseTo(0.3, 10);
     });
 
     test('should cap deepfake score at 1.0', () => {
@@ -117,15 +118,15 @@ describe('Video Verification', () => {
 
   describe('YouTube metadata extraction', () => {
     test('should extract YouTube video ID from URL', () => {
-      const patterns = [
+      const testCases = [
         { url: 'https://youtube.com/watch?v=dQw4w9WgXcQ', expectedId: 'dQw4w9WgXcQ' },
         { url: 'https://youtu.be/dQw4w9WgXcQ', expectedId: 'dQw4w9WgXcQ' },
         { url: 'https://youtube.com/embed/dQw4w9WgXcQ', expectedId: 'dQw4w9WgXcQ' }
       ];
 
-      for (const pattern of patterns) {
-        const match = pattern.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-        expect(match[1]).toBe(pattern.expectedId);
+      for (const testCase of testCases) {
+        const videoId = extractYouTubeVideoId(testCase.url);
+        expect(videoId).toBe(testCase.expectedId);
       }
     });
 

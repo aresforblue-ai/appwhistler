@@ -179,17 +179,49 @@ class LanguageService {
   }
 
   /**
+   * Common English words for heuristic detection
+   * These words are distinctive for English and rarely appear in other languages
+   * @private
+   */
+  static ENGLISH_WORDS = [
+    'the', 'this', 'is', 'are', 'was', 'were', 'been', 'being', 'have', 'has', 'had',
+    'do', 'does', 'did', 'will', 'would', 'could', 'should', 'might', 'must', 'shall',
+    'can', 'may', 'a', 'an', 'and', 'but', 'or', 'not', 'be', 'to', 'of', 'for', 'with',
+    'that', 'it', 'you', 'he', 'she', 'they', 'we', 'I', 'my', 'your', 'his', 'her',
+    'their', 'our', 'its', 'what', 'which', 'who', 'whom', 'whose', 'where', 'when',
+    'why', 'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other',
+    'some', 'such', 'no', 'nor', 'too', 'very', 'just', 'also', 'only'
+  ];
+
+  /**
    * Simple heuristic-based language detection (fallback)
    * @private
    */
   _detectLanguageHeuristic(text) {
+    // Check for English first using common English words
+    // These words are very distinctive for English and unlikely to appear in other languages
+    const englishPattern = new RegExp('\\b(' + LanguageService.ENGLISH_WORDS.join('|') + ')\\b', 'gi');
+    const englishMatches = text.match(englishPattern);
+    if (englishMatches && englishMatches.length >= 2) {
+      const wordCount = text.split(/\s+/).length;
+      const matchRatio = englishMatches.length / wordCount;
+      if (matchRatio >= 0.2) {
+        return {
+          language: 'en',
+          confidence: Math.min(matchRatio * 2, 0.9),
+          name: 'English',
+          method: 'heuristic'
+        };
+      }
+    }
+
     const patterns = {
       // Spanish: common words and diacritics
       es: /\b(el|la|los|las|de|que|es|un|una|por|con|no|se|para)\b|[áéíóúñ]/i,
       // French: common words and diacritics
       fr: /\b(le|la|les|de|un|une|et|est|pour|dans|ce|qui|ne|pas)\b|[àâçéèêëîïôùûü]/i,
       // German: common words and characters
-      de: /\b(der|die|das|und|in|von|zu|den|mit|ist|des|dem)\b|[äöüß]/i,
+      de: /\b(der|die|das|und|von|zu|den|mit|ist|des|dem)\b|[äöüß]/i,
       // Chinese: CJK characters
       zh: /[\u4e00-\u9fff]/,
       // Japanese: Hiragana, Katakana, Kanji
@@ -205,7 +237,7 @@ class LanguageService {
       // Hindi: Devanagari script
       hi: /[\u0900-\u097f]/,
       // Italian: common words
-      it: /\b(il|lo|la|i|gli|le|di|da|in|con|su|per|tra|fra)\b|[àèéìòù]/i
+      it: /\b(il|lo|la|i|gli|le|di|da|con|su|per|tra|fra)\b|[àèéìòù]/i
     };
 
     // Test each pattern
